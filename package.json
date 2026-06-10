@@ -1,0 +1,42 @@
+{
+  "name": "agents-api",
+  "version": "0.2.1",
+  "description": "Minimal local HTTP API for running installed AI agent CLIs.",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "bin": {
+    "agentsapi": "bin/agentsapi.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "node --check bin/agentsapi.js && node --check src/agentHealth.js && node --check src/agentRunner.js && node --check src/agents.js && node --check src/argsString.js && node --check src/auth.js && node --check src/cli.js && node --check src/codexOutput.js && node --check src/config.js && node --check src/index.js && node --check src/logger.js && node --check src/openapi.js && node --check src/processRunner.js && node --check src/server.js"
+  },
+  "keywords": [
+    "agents",
+    "ai",
+    "codex",
+    "claude",
+    "gemini",
+    "cli",
+    "api",
+    "wrapper"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/badluck1024/agents-api.git"
+  },
+  "bugs": {
+    "url": "https://github.com/badluck1024/agents-api/issues"
+  },
+  "homepage": "https://github.com/badluck1024/agents-api#readme",
+  "engines": {
+    "node": ">=18"
+  }
+}
