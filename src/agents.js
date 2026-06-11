@@ -29,7 +29,7 @@ const AGENTS = {
     commandEnv: 'AGENTSAPI_GEMINI_COMMAND',
     defaultCommand: 'gemini',
     versionArgs: ['--version'],
-    authArgs: ['auth', 'status'],
+    authCheck: 'gemini-configured-auth',
     buildArgs(configString, prompt) {
       return [...splitArgsString(configString), '-p', prompt];
     },

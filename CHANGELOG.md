@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.2.3 - 2026-06-11
+
+### Fixed
+
+- Gemini CLI status now uses configured non-interactive authentication instead of calling an interactive auth command.
+
 ## 0.2.2 - 2026-06-11
 
 ### Added
