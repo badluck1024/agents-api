@@ -79,16 +79,20 @@ function generateOpenApiSpec() {
         RunRequest: {
           type: 'object',
           required: ['prompt'],
+          anyOf: [
+            { required: ['agent'] },
+            { required: ['provider'] },
+          ],
           properties: {
             agent: {
               type: 'string',
               enum: ['codex', 'claude', 'gemini'],
-              description: 'Agente da usare. Se assente usa il default pronto o il primo agente pronto.',
+              description: 'Agente da usare.',
             },
             provider: {
               type: 'string',
               enum: ['codex', 'claude', 'gemini'],
-              description: 'Alias di agent mantenuto per compatibilita.',
+              description: 'Alias di agent.',
             },
             prompt: {
               type: 'string',

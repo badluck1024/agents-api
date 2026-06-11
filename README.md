@@ -111,8 +111,6 @@ agentsapi config get codex
 agentsapi config clear claude
 ```
 
-If the agent is omitted in `config` commands, `codex` is used for compatibility.
-
 ### Configuration Examples
 
 Configure only agent options. `agentsapi` supplies the command form used to pass the prompt:
@@ -261,13 +259,11 @@ Fields:
 | Field | Required | Description |
 | --- | --- | --- |
 | `prompt` | Yes | Prompt passed to the selected agent |
-| `agent` | No | `codex`, `claude`, or `gemini` |
-| `provider` | No | Alias of `agent` |
+| `agent` | Yes, unless `provider` is used | `codex`, `claude`, or `gemini` |
+| `provider` | Yes, unless `agent` is used | Alias of `agent` |
 | `project` | No | Project ID used to select working directory and project config |
 | `config` | No | Request-level argument string |
 | `responseMode` | No | `normalized` or `raw` |
-
-If `agent` is omitted, `agentsapi` selects the default ready agent, or the first ready agent.
 
 Normalized response:
 
@@ -344,14 +340,14 @@ agentsapi serve [--host <host>] [--port <port>] [--log-level <level>]
 agentsapi status
 agentsapi agents status
 agentsapi auth status|generate|set <token>|clear
-agentsapi config get [codex|claude|gemini]
-agentsapi config set [codex|claude|gemini] "<agent args>"
-agentsapi config clear [codex|claude|gemini]
+agentsapi config get <codex|claude|gemini>
+agentsapi config set <codex|claude|gemini> "<agent args>"
+agentsapi config clear <codex|claude|gemini>
 agentsapi projects list
 agentsapi projects add <id> <working_dir>
 agentsapi projects remove <id>
-agentsapi projects config <id> [codex|claude|gemini] ["<agent args>"|--clear]
-agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--config "<agent args>"] <prompt>
+agentsapi projects config <id> [<codex|claude|gemini> ["<agent args>"|--clear]]
+agentsapi run --agent <codex|claude|gemini> [--project <id>] [--config "<agent args>"] <prompt>
 agentsapi logs get
 agentsapi logs level <debug|info|warning|error|off>
 agentsapi logs requests <on|off>
@@ -394,7 +390,6 @@ Logs are emitted as JSON lines on stdout/stderr.
 | `AGENTSAPI_HOME` | Directory used to store `config.json` |
 | `AGENTSAPI_API_KEY` | Bearer token used by the HTTP API |
 | `AGENTSAPI_LOG_LEVEL` | Runtime log level |
-| `AGENTSAPI_DEFAULT_AGENT` | Default agent ID |
 | `AGENTSAPI_CODEX_COMMAND` | Codex command path/name |
 | `AGENTSAPI_CLAUDE_COMMAND` | Claude Code command path/name |
 | `AGENTSAPI_GEMINI_COMMAND` | Gemini CLI command path/name |

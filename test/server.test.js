@@ -154,7 +154,6 @@ function writeConfig({ directory, apiKey = '', agentId = 'codex', agentConfig = 
   config.logging.level = 'off';
   config.logging.requests = false;
   config.auth.apiKey = apiKey;
-  config.defaultAgent = agentId;
   config.agents[agentId].command = command;
   config.agents[agentId].config = agentConfig;
   saveConfig(config);
@@ -192,6 +191,34 @@ test('POST /api/runs requires bearer auth when API key is configured', async () 
     assert.equal(authorized.json.output, 'ACK:CIAO');
     assert.equal(authorized.json.sessionId, 'fake-thread');
     assert.equal(authorized.json.usage.output_tokens, 2);
+  } finally {
+    await closeServer(server);
+    restoreHome();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('POST /api/runs requires agent or provider in the request body', async () => {
+  const directory = createTempDir();
+  const command = createFakeAgentCommand(directory, 'codex');
+  const restoreHome = writeConfig({
+    directory,
+    agentId: 'codex',
+    agentConfig: '--json',
+    command,
+  });
+  const server = createServer();
+
+  try {
+    const port = await listen(server);
+    const response = await request({
+      port,
+      path: '/api/runs',
+      body: { prompt: 'CIAO' },
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.match(response.json.error, /agent o provider/);
   } finally {
     await closeServer(server);
     restoreHome();

@@ -5,7 +5,6 @@ const { defaultConfig, resolveRunConfig, selectAgentId } = require('../src/confi
 
 function createConfig() {
   const config = defaultConfig();
-  config.defaultAgent = 'codex';
   config.agents.codex.config = '--shared-codex';
   config.agents.claude.config = '--shared-claude';
   config.agents.gemini.config = '--shared-gemini';
@@ -21,14 +20,16 @@ function createConfig() {
   return config;
 }
 
-test('selectAgentId uses requested agent when provided', () => {
+test('selectAgentId uses requested agent or provider when provided', () => {
   assert.equal(selectAgentId(createConfig(), { agent: 'claude' }, { readyAgentIds: ['codex'] }), 'claude');
   assert.equal(selectAgentId(createConfig(), { provider: 'gemini' }, { readyAgentIds: ['codex'] }), 'gemini');
 });
 
-test('selectAgentId prefers ready default agent, then first ready agent', () => {
-  assert.equal(selectAgentId(createConfig(), {}, { readyAgentIds: ['codex', 'claude'] }), 'codex');
-  assert.equal(selectAgentId(createConfig(), {}, { readyAgentIds: ['gemini'] }), 'gemini');
+test('selectAgentId requires agent or provider', () => {
+  assert.throws(
+    () => selectAgentId(createConfig(), {}, { readyAgentIds: ['codex', 'claude'] }),
+    /agent o provider/
+  );
 });
 
 test('resolveRunConfig applies request, project, then shared precedence', () => {
