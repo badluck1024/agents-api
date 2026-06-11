@@ -66,7 +66,13 @@ function classifyError(error) {
     return { statusCode: 503, message };
   }
 
-  if (message.includes('prompt') || message.includes('JSON non valido') || message.includes('Virgolette non chiuse') || message.startsWith('Agente non valido')) {
+  if (
+    message.includes('prompt') ||
+    message.includes('agent o provider') ||
+    message.includes('JSON non valido') ||
+    message.includes('Virgolette non chiuse') ||
+    message.startsWith('Agente non valido')
+  ) {
     return { statusCode: 400, message };
   }
 
@@ -388,7 +394,6 @@ function createServer() {
         ok: true,
         agents: runtimeAgentStatuses.length > 0 ? runtimeAgentStatuses : [],
         readyAgents: runtimeReadyAgentIds,
-        defaultAgent: config.defaultAgent,
       });
       return;
     }

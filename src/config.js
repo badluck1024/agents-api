@@ -27,7 +27,6 @@ function defaultConfig() {
       host: '127.0.0.1',
       port: 7357,
     },
-    defaultAgent: normalizeAgentId(process.env.AGENTSAPI_DEFAULT_AGENT, 'codex'),
     agents: createDefaultAgentsConfig(process.env),
     auth: {
       apiKey: '',
@@ -53,7 +52,6 @@ function normalizeConfig(config) {
       ...base.server,
       ...((config && config.server) || {}),
     },
-    defaultAgent: normalizeAgentId(config && config.defaultAgent, base.defaultAgent),
     agents: {},
     auth: {
       ...base.auth,
@@ -121,7 +119,7 @@ function saveConfig(config) {
   fs.writeFileSync(getConfigPath(), `${JSON.stringify(normalizeConfig(config), null, 2)}\n`, 'utf8');
 }
 
-function selectAgentId(config, request = {}, options = {}) {
+function selectAgentId(config, request = {}) {
   const requestedValue = request.agent || request.provider;
   if (requestedValue !== undefined && requestedValue !== null && String(requestedValue).trim()) {
     const requested = normalizeAgentId(requestedValue, null);
@@ -131,15 +129,7 @@ function selectAgentId(config, request = {}, options = {}) {
     return requested;
   }
 
-  const ready = Array.isArray(options.readyAgentIds) ? options.readyAgentIds : [];
-  const defaultAgent = normalizeAgentId(config.defaultAgent, 'codex');
-  if (ready.includes(defaultAgent)) {
-    return defaultAgent;
-  }
-  if (ready.length > 0) {
-    return ready[0];
-  }
-  return defaultAgent;
+  throw new Error('Il campo agent o provider e obbligatorio.');
 }
 
 function resolveRunConfig(config, request = {}, options = {}) {

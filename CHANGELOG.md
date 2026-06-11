@@ -10,6 +10,11 @@ The project follows Semantic Versioning while the public package remains on the 
 
 - Automated Node.js test suite for argument parsing, agent command construction, run configuration resolution, output normalization, API authentication, and HTTP run endpoints.
 
+### Changed
+
+- Run requests require an explicit `agent` or `provider` value.
+- CLI configuration commands require an explicit agent argument.
+
 ## 0.2.1 - 2026-06-10
 
 ### Added

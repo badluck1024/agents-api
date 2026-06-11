@@ -17,15 +17,15 @@ Uso:
   agentsapi status
   agentsapi agents status
   agentsapi auth status|generate|set <token>|clear
-  agentsapi config get [codex|claude|gemini]
-  agentsapi config set [codex|claude|gemini] "<argomenti agente>"
-  agentsapi config clear [codex|claude|gemini]
+  agentsapi config get <codex|claude|gemini>
+  agentsapi config set <codex|claude|gemini> "<argomenti agente>"
+  agentsapi config clear <codex|claude|gemini>
   agentsapi logs get|level <debug|info|warning|error|off>|requests <on|off>|prompt <on|off>
   agentsapi projects list
   agentsapi projects add <id> <working_dir>
   agentsapi projects remove <id>
-  agentsapi projects config <id> [codex|claude|gemini] ["<argomenti agente>"|--clear]
-  agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--config "<argomenti agente>"] <prompt>
+  agentsapi projects config <id> [<codex|claude|gemini> ["<argomenti agente>"|--clear]]
+  agentsapi run --agent <codex|claude|gemini> [--project <id>] [--config "<argomenti agente>"] <prompt>
 
 Regola di override:
   config richiesta API/CLI > config progetto/agente > config condivisa/agente.
@@ -48,8 +48,9 @@ function requireArg(value, label) {
   return value;
 }
 
-function requireAgent(value, fallback = 'codex') {
-  const agentId = normalizeAgentId(value, fallback);
+function requireAgent(value) {
+  requireArg(value, 'agent');
+  const agentId = normalizeAgentId(value, null);
   if (!agentId) {
     throw new Error(`Agente non valido: ${value}. Usa: ${listAgentIds().join(', ')}`);
   }
@@ -112,7 +113,6 @@ async function handleStatus() {
   console.log(JSON.stringify({
     configPath: getConfigPath(),
     stateDir: getStateDir(),
-    defaultAgent: config.defaultAgent,
     agents,
     auth: {
       enabled: auth.enabled,
@@ -174,34 +174,26 @@ function handleAuth(args) {
   throw new Error(`Comando auth non riconosciuto: ${subcommand}`);
 }
 
-function resolveConfigCommandAgent(args, startIndex) {
-  const maybeAgent = normalizeAgentId(args[startIndex], null);
-  if (maybeAgent) {
-    return { agentId: maybeAgent, valueStartIndex: startIndex + 1 };
-  }
-  return { agentId: 'codex', valueStartIndex: startIndex };
-}
-
 function handleConfig(args) {
   const subcommand = args[0] || 'get';
   const config = loadConfig();
 
   if (subcommand === 'get') {
-    const agentId = requireAgent(args[1], 'codex');
+    const agentId = requireAgent(args[1]);
     console.log(config.agents[agentId].config);
     return;
   }
 
   if (subcommand === 'set') {
-    const parsed = resolveConfigCommandAgent(args, 1);
-    config.agents[parsed.agentId].config = joinRemainingArgs(args, parsed.valueStartIndex);
+    const agentId = requireAgent(args[1]);
+    config.agents[agentId].config = joinRemainingArgs(args, 2);
     saveConfig(config);
-    console.log(`Configurazione condivisa ${parsed.agentId} aggiornata.`);
+    console.log(`Configurazione condivisa ${agentId} aggiornata.`);
     return;
   }
 
   if (subcommand === 'clear') {
-    const agentId = requireAgent(args[1], 'codex');
+    const agentId = requireAgent(args[1]);
     config.agents[agentId].config = '';
     saveConfig(config);
     console.log(`Configurazione condivisa ${agentId} svuotata.`);
@@ -321,9 +313,8 @@ function handleProjects(args) {
       return;
     }
 
-    const maybeAgent = normalizeAgentId(args[2], null);
-    const agentId = maybeAgent || 'codex';
-    const valueStartIndex = maybeAgent ? 3 : 2;
+    const agentId = requireAgent(args[2]);
+    const valueStartIndex = 3;
     project.agents[agentId] = project.agents[agentId] || { config: '' };
 
     if (args.length === valueStartIndex) {
@@ -353,7 +344,7 @@ function parseRunArgs(args) {
     const arg = args[index];
 
     if (arg === '--agent' || arg === '--provider') {
-      request.agent = requireAgent(args[index + 1], null);
+      request.agent = requireAgent(args[index + 1]);
       index += 1;
       continue;
     }
