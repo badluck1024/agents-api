@@ -27,6 +27,7 @@ function defaultConfig() {
       host: '127.0.0.1',
       port: 7357,
     },
+    defaultAgent: '',
     agents: createDefaultAgentsConfig(process.env),
     auth: {
       apiKey: '',
@@ -52,6 +53,7 @@ function normalizeConfig(config) {
       ...base.server,
       ...((config && config.server) || {}),
     },
+    defaultAgent: normalizeAgentId(config && config.defaultAgent, null) || '',
     agents: {},
     auth: {
       ...base.auth,
@@ -129,7 +131,12 @@ function selectAgentId(config, request = {}) {
     return requested;
   }
 
-  throw new Error('Il campo agent o provider e obbligatorio.');
+  const defaultAgent = normalizeAgentId(config && config.defaultAgent, null);
+  if (defaultAgent) {
+    return defaultAgent;
+  }
+
+  throw new Error('Il campo agent o provider e obbligatorio quando defaultAgent non e configurato.');
 }
 
 function resolveRunConfig(config, request = {}, options = {}) {

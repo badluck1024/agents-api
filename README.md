@@ -4,6 +4,8 @@ Run local AI agent CLIs through a small HTTP API.
 
 `agents-api` exposes a consistent API for installed command-line agents such as Codex, Claude Code, and Gemini CLI. It is designed for machines where one or more supported agents are already available and authenticated.
 
+This package is implemented with Codex.
+
 ## Supported Agents
 
 | Agent | CLI command | Non-interactive command used by agents-api |
@@ -38,7 +40,7 @@ agentsapi --version
 Expected version:
 
 ```text
-0.2.1
+0.2.2
 ```
 
 ## Quick Start
@@ -61,6 +63,12 @@ Configure an agent:
 agentsapi config set codex "--json --model gpt-5.5"
 agentsapi config set claude "--output-format text --model sonnet"
 agentsapi config set gemini "--output-format json --model gemini-3-pro-preview"
+```
+
+Set the fallback agent:
+
+```bash
+agentsapi config default set codex
 ```
 
 Start the server:
@@ -109,6 +117,14 @@ Read or clear a shared configuration:
 ```bash
 agentsapi config get codex
 agentsapi config clear claude
+```
+
+Set the fallback agent used when a run request does not include `agent` or `provider`:
+
+```bash
+agentsapi config default set claude
+agentsapi config default get
+agentsapi config default clear
 ```
 
 ### Configuration Examples
@@ -259,11 +275,13 @@ Fields:
 | Field | Required | Description |
 | --- | --- | --- |
 | `prompt` | Yes | Prompt passed to the selected agent |
-| `agent` | Yes, unless `provider` is used | `codex`, `claude`, or `gemini` |
-| `provider` | Yes, unless `agent` is used | Alias of `agent` |
+| `agent` | No | `codex`, `claude`, or `gemini` |
+| `provider` | No | Alias of `agent` |
 | `project` | No | Project ID used to select working directory and project config |
 | `config` | No | Request-level argument string |
 | `responseMode` | No | `normalized` or `raw` |
+
+If neither `agent` nor `provider` is provided, the configured fallback agent is used. Without a fallback agent, the request is rejected.
 
 Normalized response:
 
@@ -340,6 +358,7 @@ agentsapi serve [--host <host>] [--port <port>] [--log-level <level>]
 agentsapi status
 agentsapi agents status
 agentsapi auth status|generate|set <token>|clear
+agentsapi config default get|set <codex|claude|gemini>|clear
 agentsapi config get <codex|claude|gemini>
 agentsapi config set <codex|claude|gemini> "<agent args>"
 agentsapi config clear <codex|claude|gemini>
@@ -347,7 +366,7 @@ agentsapi projects list
 agentsapi projects add <id> <working_dir>
 agentsapi projects remove <id>
 agentsapi projects config <id> [<codex|claude|gemini> ["<agent args>"|--clear]]
-agentsapi run --agent <codex|claude|gemini> [--project <id>] [--config "<agent args>"] <prompt>
+agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--config "<agent args>"] <prompt>
 agentsapi logs get
 agentsapi logs level <debug|info|warning|error|off>
 agentsapi logs requests <on|off>
@@ -419,7 +438,8 @@ Common cases:
 | `NOT_INSTALLED` | Install the agent CLI or configure the command path with the matching environment variable |
 | `NOT_AUTHENTICATED` | Run the agent login command as the same OS user that starts `agentsapi` |
 | `401 Unauthorized` from `agentsapi` | Send `Authorization: Bearer <token>` |
-| `503 Agente non disponibile` | Select an installed and authenticated agent, or omit `agent` to use an available one |
+| `400` for a request without `agent` | Pass `agent` or configure a fallback agent with `agentsapi config default set <agent>` |
+| `503 Agente non disponibile` | Select an installed and authenticated agent |
 
 ## License
 

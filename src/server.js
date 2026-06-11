@@ -394,6 +394,7 @@ function createServer() {
         ok: true,
         agents: runtimeAgentStatuses.length > 0 ? runtimeAgentStatuses : [],
         readyAgents: runtimeReadyAgentIds,
+        defaultAgent: config.defaultAgent || null,
       });
       return;
     }
