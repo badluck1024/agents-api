@@ -6,6 +6,10 @@ The project follows Semantic Versioning while the public package remains on the 
 
 ## Unreleased
 
+### Added
+
+- Automated Node.js test suite for argument parsing, agent command construction, run configuration resolution, output normalization, API authentication, and HTTP run endpoints.
+
 ## 0.2.1 - 2026-06-10
 
 ### Added

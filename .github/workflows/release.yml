@@ -32,6 +32,9 @@ jobs:
       - name: Syntax check
         run: pnpm run check
 
+      - name: Test
+        run: pnpm test
+
       - name: Release metadata check
         run: pnpm run release:check
 

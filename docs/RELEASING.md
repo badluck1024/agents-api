@@ -54,6 +54,7 @@ Before opening or merging a pull request:
 
 ```bash
 pnpm run check
+pnpm test
 pnpm run release:check
 ```
 
@@ -85,6 +86,7 @@ After a release pull request has been merged:
 git checkout main
 git pull origin main
 pnpm run check
+pnpm test
 pnpm run release:check
 git tag -a v0.2.2 -m "v0.2.2"
 git push origin v0.2.2
@@ -92,6 +94,8 @@ git push origin v0.2.2
 
 Pushing a `v0.2.x` tag starts the release workflow. The workflow:
 
+- runs the syntax check
+- runs the automated test suite
 - validates the version metadata
 - publishes the package to npm
 - creates the GitHub Release from the tag
