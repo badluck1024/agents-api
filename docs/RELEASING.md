@@ -59,17 +59,23 @@ pnpm run release:check
 
 The CI workflow runs the same checks on pull requests and on pushes to `main`.
 
-## npm Token
+## Trusted Publishing
 
-The release workflow publishes to npm with the repository secret `NPM_TOKEN`.
+The release workflow publishes to npm with Trusted Publishing. It uses GitHub Actions OIDC and does not require an npm automation token.
 
-Create an npm automation token and add it in GitHub:
+Configure the package on npmjs.com:
 
 ```text
-Repository settings -> Secrets and variables -> Actions -> New repository secret
-Name: NPM_TOKEN
-Value: <npm automation token>
+npmjs.com -> agents-api -> Settings -> Trusted publishing
+Provider: GitHub Actions
+Organization or user: badluck1024
+Repository: agents-api
+Workflow filename: release.yml
+Environment name: <empty>
+Allowed actions: npm publish
 ```
+
+Trusted Publishing requires Node.js `22.14.0` or newer and npm `11.5.1` or newer in the release workflow. The workflow uses Node.js `24`.
 
 ## Release Flow
 
