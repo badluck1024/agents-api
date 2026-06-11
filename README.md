@@ -40,7 +40,7 @@ agentsapi --version
 Expected version:
 
 ```text
-0.2.2
+0.2.3
 ```
 
 ## Quick Start
@@ -88,19 +88,33 @@ curl http://127.0.0.1:7357/api/runs \
 
 ## Agent Status
 
-`agentsapi` checks all supported agents when the server starts:
+Check all supported agents:
 
 ```bash
 agentsapi agents status
 ```
 
-The server prints the state of each agent:
+The command returns a JSON array. Each entry includes:
+
+| Field | Description |
+| --- | --- |
+| `agent` / `provider` | Agent ID |
+| `command` | CLI command used by `agentsapi` |
+| `installed` | The command can be executed |
+| `authenticated` | Authentication is available for non-interactive use |
+| `ready` | The agent can be selected for runs |
+| `version` | CLI version when available |
+| `authStatus` / `error` | Authentication detail or failure reason |
+
+When the HTTP server starts, it prints a compact line for each agent:
 
 - `READY`: installed and authenticated
 - `NOT_AUTHENTICATED`: command exists, but authentication check failed
 - `NOT_INSTALLED`: command cannot be executed
 
 If no agent is `READY`, the server exits.
+
+For Gemini CLI, authentication status is based on the configured non-interactive auth method, such as `GEMINI_API_KEY`, `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_GENAI_USE_GCA`, or the Gemini CLI settings file.
 
 ## Configuration
 

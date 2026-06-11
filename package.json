@@ -1,6 +1,6 @@
 {
   "name": "agents-api",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Minimal local HTTP API for running installed AI agent CLIs.",
   "type": "commonjs",
   "main": "src/index.js",
