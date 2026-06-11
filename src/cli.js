@@ -17,6 +17,7 @@ Uso:
   agentsapi status
   agentsapi agents status
   agentsapi auth status|generate|set <token>|clear
+  agentsapi config default get|set <codex|claude|gemini>|clear
   agentsapi config get <codex|claude|gemini>
   agentsapi config set <codex|claude|gemini> "<argomenti agente>"
   agentsapi config clear <codex|claude|gemini>
@@ -25,13 +26,14 @@ Uso:
   agentsapi projects add <id> <working_dir>
   agentsapi projects remove <id>
   agentsapi projects config <id> [<codex|claude|gemini> ["<argomenti agente>"|--clear]]
-  agentsapi run --agent <codex|claude|gemini> [--project <id>] [--config "<argomenti agente>"] <prompt>
+  agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--config "<argomenti agente>"] <prompt>
 
 Regola di override:
   config richiesta API/CLI > config progetto/agente > config condivisa/agente.
 
 Esempi:
   agentsapi auth generate
+  agentsapi config default set codex
   agentsapi config set codex "--json --model gpt-5"
   agentsapi config set claude "--model sonnet --permission-mode plan"
   agentsapi config set gemini "--model gemini-2.5-pro"
@@ -113,6 +115,7 @@ async function handleStatus() {
   console.log(JSON.stringify({
     configPath: getConfigPath(),
     stateDir: getStateDir(),
+    defaultAgent: config.defaultAgent || null,
     agents,
     auth: {
       enabled: auth.enabled,
@@ -174,9 +177,39 @@ function handleAuth(args) {
   throw new Error(`Comando auth non riconosciuto: ${subcommand}`);
 }
 
+function handleDefaultAgentConfig(args, config) {
+  const subcommand = args[0] || 'get';
+
+  if (subcommand === 'get') {
+    console.log(config.defaultAgent || '');
+    return;
+  }
+
+  if (subcommand === 'set') {
+    config.defaultAgent = requireAgent(args[1]);
+    saveConfig(config);
+    console.log(`Agente predefinito aggiornato: ${config.defaultAgent}`);
+    return;
+  }
+
+  if (subcommand === 'clear') {
+    config.defaultAgent = '';
+    saveConfig(config);
+    console.log('Agente predefinito rimosso.');
+    return;
+  }
+
+  throw new Error(`Comando config default non riconosciuto: ${subcommand}`);
+}
+
 function handleConfig(args) {
   const subcommand = args[0] || 'get';
   const config = loadConfig();
+
+  if (subcommand === 'default') {
+    handleDefaultAgentConfig(args.slice(1), config);
+    return;
+  }
 
   if (subcommand === 'get') {
     const agentId = requireAgent(args[1]);

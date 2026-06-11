@@ -14,12 +14,16 @@ function fail(message) {
   errors.push(message);
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 if (!/^0\.2\.\d+$/.test(version)) {
   fail(`package.json version must stay in the 0.2.x line. Found ${version}.`);
 }
 
 const readme = readFile('README.md');
-if (!readme.includes(`\n${version}\n`)) {
+if (!new RegExp(`(^|\\r?\\n)${escapeRegExp(version)}(\\r?\\n|$)`).test(readme)) {
   fail(`README.md must contain the current package version ${version}.`);
 }
 

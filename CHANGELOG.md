@@ -2,18 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
-The project follows Semantic Versioning while the public package remains on the `0.2.x` release line.
-
 ## Unreleased
+
+## 0.2.2 - 2026-06-11
 
 ### Added
 
 - Automated Node.js test suite for argument parsing, agent command construction, run configuration resolution, output normalization, API authentication, and HTTP run endpoints.
+- CLI commands to configure the fallback agent used when run requests omit `agent` and `provider`.
 
 ### Changed
 
-- Run requests require an explicit `agent` or `provider` value.
-- CLI configuration commands require an explicit agent argument.
+- Run requests use the configured fallback agent when `agent` and `provider` are omitted.
+- Agent argument configuration commands require an explicit agent argument.
 
 ## 0.2.1 - 2026-06-10
 

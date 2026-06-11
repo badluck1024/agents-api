@@ -3,7 +3,7 @@ function generateOpenApiSpec() {
     openapi: '3.1.0',
     info: {
       title: 'agents-api',
-      version: '0.2.1',
+      version: '0.2.2',
       description: 'HTTP API minimale per eseguire agenti CLI installati localmente.',
     },
     security: [
@@ -79,20 +79,16 @@ function generateOpenApiSpec() {
         RunRequest: {
           type: 'object',
           required: ['prompt'],
-          anyOf: [
-            { required: ['agent'] },
-            { required: ['provider'] },
-          ],
           properties: {
             agent: {
               type: 'string',
               enum: ['codex', 'claude', 'gemini'],
-              description: 'Agente da usare.',
+              description: 'Agente da usare. Se assente viene usato il default configurato.',
             },
             provider: {
               type: 'string',
               enum: ['codex', 'claude', 'gemini'],
-              description: 'Alias di agent.',
+              description: 'Alias di agent. Se assente viene usato il default configurato.',
             },
             prompt: {
               type: 'string',

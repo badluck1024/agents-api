@@ -148,12 +148,13 @@ function parseSseEvents(text) {
     });
 }
 
-function writeConfig({ directory, apiKey = '', agentId = 'codex', agentConfig = '', command }) {
+function writeConfig({ directory, apiKey = '', agentId = 'codex', agentConfig = '', command, defaultAgent = '' }) {
   const restoreHome = withAgentsApiHome(directory);
   const config = defaultConfig();
   config.logging.level = 'off';
   config.logging.requests = false;
   config.auth.apiKey = apiKey;
+  config.defaultAgent = defaultAgent;
   config.agents[agentId].command = command;
   config.agents[agentId].config = agentConfig;
   saveConfig(config);
@@ -198,7 +199,37 @@ test('POST /api/runs requires bearer auth when API key is configured', async () 
   }
 });
 
-test('POST /api/runs requires agent or provider in the request body', async () => {
+test('POST /api/runs uses configured default agent when request omits agent and provider', async () => {
+  const directory = createTempDir();
+  const command = createFakeAgentCommand(directory, 'codex');
+  const restoreHome = writeConfig({
+    directory,
+    agentId: 'codex',
+    agentConfig: '--json',
+    command,
+    defaultAgent: 'codex',
+  });
+  const server = createServer();
+
+  try {
+    const port = await listen(server);
+    const response = await request({
+      port,
+      path: '/api/runs',
+      body: { prompt: 'CIAO' },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json.agent, 'codex');
+    assert.equal(response.json.output, 'ACK:CIAO');
+  } finally {
+    await closeServer(server);
+    restoreHome();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('POST /api/runs requires agent, provider, or configured default agent', async () => {
   const directory = createTempDir();
   const command = createFakeAgentCommand(directory, 'codex');
   const restoreHome = writeConfig({
@@ -218,7 +249,7 @@ test('POST /api/runs requires agent or provider in the request body', async () =
     });
 
     assert.equal(response.statusCode, 400);
-    assert.match(response.json.error, /agent o provider/);
+    assert.match(response.json.error, /defaultAgent/);
   } finally {
     await closeServer(server);
     restoreHome();

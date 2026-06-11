@@ -25,10 +25,17 @@ test('selectAgentId uses requested agent or provider when provided', () => {
   assert.equal(selectAgentId(createConfig(), { provider: 'gemini' }, { readyAgentIds: ['codex'] }), 'gemini');
 });
 
-test('selectAgentId requires agent or provider', () => {
+test('selectAgentId uses configured default agent when request omits agent and provider', () => {
+  const config = createConfig();
+  config.defaultAgent = 'claude';
+
+  assert.equal(selectAgentId(config, {}, { readyAgentIds: ['codex'] }), 'claude');
+});
+
+test('selectAgentId requires agent, provider, or configured default agent', () => {
   assert.throws(
     () => selectAgentId(createConfig(), {}, { readyAgentIds: ['codex', 'claude'] }),
-    /agent o provider/
+    /defaultAgent/
   );
 });
 
@@ -46,6 +53,12 @@ test('resolveRunConfig applies request, project, then shared precedence', () => 
   assert.equal(
     resolveRunConfig(config, { agent: 'claude', project: 'webapp', config: '--request-claude' }).config,
     '--request-claude'
+  );
+
+  config.defaultAgent = 'claude';
+  assert.equal(
+    resolveRunConfig(config, { project: 'webapp' }).config,
+    '--project-claude'
   );
 });
 
