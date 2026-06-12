@@ -415,6 +415,68 @@ test('POST /api/runs rejects invalid timeoutMs', async () => {
   }
 });
 
+test('POST /api/runs terminates silent agent after idleTimeoutMs', async () => {
+  const directory = createTempDir();
+  const command = createFakeAgentCommand(directory, 'gemini');
+  const restoreHome = writeConfig({
+    directory,
+    agentId: 'gemini',
+    agentConfig: '--hang',
+    command,
+  });
+  const server = createServer();
+
+  try {
+    const port = await listen(server);
+    const response = await request({
+      port,
+      path: '/api/runs',
+      body: {
+        agent: 'gemini',
+        prompt: 'CIAO',
+        idleTimeoutMs: 25,
+        responseMode: 'raw',
+      },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json.idleTimedOut, true);
+    assert.match(response.json.stderr, /no output/);
+  } finally {
+    await closeServer(server);
+    restoreHome();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('POST /api/runs rejects invalid idleTimeoutMs', async () => {
+  const directory = createTempDir();
+  const command = createFakeAgentCommand(directory, 'codex');
+  const restoreHome = writeConfig({
+    directory,
+    agentId: 'codex',
+    agentConfig: '--json',
+    command,
+  });
+  const server = createServer();
+
+  try {
+    const port = await listen(server);
+    const response = await request({
+      port,
+      path: '/api/runs',
+      body: { agent: 'codex', prompt: 'CIAO', idleTimeoutMs: 0 },
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.match(response.json.error, /idleTimeoutMs/);
+  } finally {
+    await closeServer(server);
+    restoreHome();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('POST /api/runs/stream returns normalized gemini stream output', async () => {
   const directory = createTempDir();
   const command = createFakeAgentCommand(directory, 'gemini');

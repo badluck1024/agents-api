@@ -71,6 +71,7 @@ function classifyError(error) {
     message.includes('prompt') ||
     message.includes('sessionId') ||
     message.includes('timeoutMs') ||
+    message.includes('idleTimeoutMs') ||
     message.includes('agent o provider') ||
     message.includes('JSON non valido') ||
     message.includes('Virgolette non chiuse') ||
@@ -174,6 +175,7 @@ function logRunRequest(context, body, resolved) {
     hasRequestConfig: Object.prototype.hasOwnProperty.call(body, 'config'),
     hasSessionId: typeof body.sessionId === 'string' && body.sessionId.trim() !== '',
     timeoutMs: body.timeoutMs || undefined,
+    idleTimeoutMs: body.idleTimeoutMs || undefined,
     configLength: String(resolved.config || '').length,
     promptLength: String(body.prompt || '').length,
   });
@@ -186,6 +188,7 @@ function logRunRequest(context, body, resolved) {
     config: resolved.config,
     sessionId: typeof body.sessionId === 'string' ? body.sessionId.trim() : undefined,
     timeoutMs: body.timeoutMs || undefined,
+    idleTimeoutMs: body.idleTimeoutMs || undefined,
     prompt: context.includePromptInLogs ? body.prompt : undefined,
   });
 }
@@ -210,6 +213,7 @@ function buildRunResponse(result, projectId, responseMode) {
     project: projectId,
     ...normalized,
     timedOut: result.timedOut === true,
+    idleTimedOut: result.idleTimedOut === true,
     sessionId: normalized.sessionId || result.sessionId || null,
   };
 }
@@ -236,6 +240,7 @@ async function handleRun(req, res, context) {
       cwd: resolved.cwd,
       sessionId: body.sessionId,
       timeoutMs: body.timeoutMs,
+      idleTimeoutMs: body.idleTimeoutMs,
     });
 
     sendJson(res, 200, buildRunResponse(result, resolved.projectId, responseMode));
@@ -246,6 +251,7 @@ async function handleRun(req, res, context) {
       responseMode,
       exitCode: result.exitCode,
       timedOut: result.timedOut === true,
+      idleTimedOut: result.idleTimedOut === true,
       stdoutLength: String(result.stdout || '').length,
       stderrLength: String(result.stderr || '').length,
     });
@@ -265,6 +271,7 @@ async function handleRunStream(req, res, context) {
   let finished = false;
   let child;
   let streamTimedOut = false;
+  let streamIdleTimedOut = false;
 
   try {
     const body = await readJsonBody(req);
@@ -281,11 +288,43 @@ async function handleRunStream(req, res, context) {
       cwd: resolved.cwd,
       sessionId: body.sessionId,
       timeoutMs: body.timeoutMs,
+      idleTimeoutMs: body.idleTimeoutMs,
     });
 
     child = run.child;
     started = true;
     let runTimeout = null;
+    let idleTimeout = null;
+
+    function clearIdleTimeout() {
+      if (idleTimeout) {
+        clearTimeout(idleTimeout);
+        idleTimeout = null;
+      }
+    }
+
+    function refreshIdleTimeout() {
+      if (!run.idleTimeoutMs || finished || streamTimedOut || streamIdleTimedOut) {
+        return;
+      }
+
+      clearIdleTimeout();
+      idleTimeout = setTimeout(() => {
+        if (finished) {
+          return;
+        }
+        streamIdleTimedOut = true;
+        sseEvent(res, 'error', {
+          error: `Process produced no output for ${run.idleTimeoutMs}ms`,
+          idleTimedOut: true,
+        });
+        killProcessTree(child);
+      }, run.idleTimeoutMs);
+      if (typeof idleTimeout.unref === 'function') {
+        idleTimeout.unref();
+      }
+    }
+
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -307,9 +346,12 @@ async function handleRunStream(req, res, context) {
             cwd: run.cwd,
             config: run.config,
             timeoutMs: run.timeoutMs,
+            idleTimeoutMs: run.idleTimeoutMs,
           }
         : {}),
     });
+
+    refreshIdleTimeout();
 
     if (run.timeoutMs) {
       runTimeout = setTimeout(() => {
@@ -331,6 +373,7 @@ async function handleRunStream(req, res, context) {
     const normalizer = createAgentStreamNormalizer(resolved.agentId, resolved.config);
 
     child.stdout.on('data', (chunk) => {
+      refreshIdleTimeout();
       if (responseMode === 'raw') {
         sseEvent(res, 'stdout', { data: String(chunk || '') });
         return;
@@ -342,6 +385,7 @@ async function handleRunStream(req, res, context) {
     });
 
     child.stderr.on('data', (chunk) => {
+      refreshIdleTimeout();
       if (responseMode === 'raw') {
         sseEvent(res, 'stderr', { data: String(chunk || '') });
         return;
@@ -363,9 +407,16 @@ async function handleRunStream(req, res, context) {
       if (runTimeout) {
         clearTimeout(runTimeout);
       }
+      clearIdleTimeout();
       const finalResult = responseMode === 'raw' ? null : normalizer.finish(code);
       const exitPayload = responseMode === 'raw'
-        ? { responseMode, exitCode: code, sessionId: run.sessionId || null, timedOut: streamTimedOut }
+        ? {
+            responseMode,
+            exitCode: code,
+            sessionId: run.sessionId || null,
+            timedOut: streamTimedOut,
+            idleTimedOut: streamIdleTimedOut,
+          }
         : {
             responseMode,
             agent: resolved.agentId,
@@ -373,6 +424,7 @@ async function handleRunStream(req, res, context) {
             project: resolved.projectId,
             ...finalResult,
             timedOut: streamTimedOut,
+            idleTimedOut: streamIdleTimedOut,
             sessionId: finalResult.sessionId || run.sessionId || null,
           };
       context.logger.info('agent_stream_completed', {
@@ -387,6 +439,10 @@ async function handleRunStream(req, res, context) {
     });
 
     req.on('close', () => {
+      if (runTimeout) {
+        clearTimeout(runTimeout);
+      }
+      clearIdleTimeout();
       if (!finished && child && !child.killed) {
         killProcessTree(child);
       }

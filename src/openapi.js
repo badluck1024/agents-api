@@ -3,7 +3,7 @@ function generateOpenApiSpec() {
     openapi: '3.1.0',
     info: {
       title: 'agents-api',
-      version: '0.2.4',
+      version: '0.2.5',
       description: 'HTTP API minimale per eseguire agenti CLI installati localmente.',
     },
     security: [
@@ -117,6 +117,11 @@ function generateOpenApiSpec() {
               minimum: 1,
               description: 'Timeout opzionale in millisecondi per terminare il processo agente.',
             },
+            idleTimeoutMs: {
+              type: 'integer',
+              minimum: 1,
+              description: 'Timeout opzionale in millisecondi per terminare il processo agente quando non produce output.',
+            },
           },
           additionalProperties: false,
         },
@@ -136,6 +141,7 @@ function generateOpenApiSpec() {
             ok: { type: 'boolean' },
             exitCode: { type: 'integer' },
             timedOut: { type: 'boolean' },
+            idleTimedOut: { type: 'boolean' },
             output: { type: 'string' },
             sessionId: { type: ['string', 'null'] },
             usage: { type: ['object', 'null'] },
@@ -163,6 +169,8 @@ function generateOpenApiSpec() {
             config: { type: 'string' },
             timeoutMs: { type: ['integer', 'null'] },
             timedOut: { type: 'boolean' },
+            idleTimeoutMs: { type: ['integer', 'null'] },
+            idleTimedOut: { type: 'boolean' },
             exitCode: { type: 'integer' },
             stdout: { type: 'string' },
             stderr: { type: 'string' },

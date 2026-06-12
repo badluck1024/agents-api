@@ -49,6 +49,19 @@ function normalizeTimeoutMs(value) {
   return timeoutMs;
 }
 
+function normalizeIdleTimeoutMs(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const idleTimeoutMs = Number(value);
+  if (!Number.isInteger(idleTimeoutMs) || idleTimeoutMs <= 0) {
+    throw new Error('Il campo idleTimeoutMs deve essere un intero positivo.');
+  }
+
+  return idleTimeoutMs;
+}
+
 function buildAgentArgs(agentId, configString, prompt, options = {}) {
   ensurePrompt(prompt);
   const sessionId = normalizeSessionId(options.sessionId);
@@ -60,12 +73,19 @@ function buildAgentArgs(agentId, configString, prompt, options = {}) {
   return agent.buildArgs(configString, prompt, { sessionId });
 }
 
-async function runAgent({ agentId, command, config, prompt, cwd, sessionId, timeoutMs }) {
+async function runAgent({ agentId, command, config, prompt, cwd, sessionId, timeoutMs, idleTimeoutMs }) {
   ensureWorkingDir(cwd);
   const normalizedSessionId = normalizeSessionId(sessionId);
   const normalizedTimeoutMs = normalizeTimeoutMs(timeoutMs);
+  const normalizedIdleTimeoutMs = normalizeIdleTimeoutMs(idleTimeoutMs);
   const args = buildAgentArgs(agentId, config, prompt, { sessionId: normalizedSessionId });
-  const result = await runProcess({ command, args, cwd, timeoutMs: normalizedTimeoutMs });
+  const result = await runProcess({
+    command,
+    args,
+    cwd,
+    timeoutMs: normalizedTimeoutMs,
+    idleTimeoutMs: normalizedIdleTimeoutMs,
+  });
 
   return {
     agent: agentId,
@@ -76,17 +96,20 @@ async function runAgent({ agentId, command, config, prompt, cwd, sessionId, time
     config,
     sessionId: normalizedSessionId,
     timeoutMs: normalizedTimeoutMs,
+    idleTimeoutMs: normalizedIdleTimeoutMs,
     timedOut: result.timedOut === true,
+    idleTimedOut: result.idleTimedOut === true,
     exitCode: result.code,
     stdout: result.stdout,
     stderr: result.stderr,
   };
 }
 
-function spawnAgent({ agentId, command, config, prompt, cwd, sessionId, timeoutMs }) {
+function spawnAgent({ agentId, command, config, prompt, cwd, sessionId, timeoutMs, idleTimeoutMs }) {
   ensureWorkingDir(cwd);
   const normalizedSessionId = normalizeSessionId(sessionId);
   const normalizedTimeoutMs = normalizeTimeoutMs(timeoutMs);
+  const normalizedIdleTimeoutMs = normalizeIdleTimeoutMs(idleTimeoutMs);
   const args = buildAgentArgs(agentId, config, prompt, { sessionId: normalizedSessionId });
   const child = spawnProcess({ command, args, cwd });
 
@@ -100,11 +123,13 @@ function spawnAgent({ agentId, command, config, prompt, cwd, sessionId, timeoutM
     config,
     sessionId: normalizedSessionId,
     timeoutMs: normalizedTimeoutMs,
+    idleTimeoutMs: normalizedIdleTimeoutMs,
   };
 }
 
 module.exports = {
   buildAgentArgs,
+  normalizeIdleTimeoutMs,
   normalizeSessionId,
   normalizeTimeoutMs,
   runAgent,

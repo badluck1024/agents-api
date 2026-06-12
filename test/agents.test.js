@@ -124,6 +124,7 @@ test('buildAgentArgs constructs gemini command arguments', () => {
       'gemini-3-pro-preview',
       '--approval-mode',
       'yolo',
+      '--prompt',
       'Scrivi solo CIAO',
     ]
   );
@@ -146,6 +147,7 @@ test('buildAgentArgs constructs gemini resume command arguments', () => {
       'gemini-3-pro-preview',
       '--approval-mode',
       'yolo',
+      '--prompt',
       'Continua',
     ]
   );
