@@ -26,7 +26,7 @@ Uso:
   agentsapi projects add <id> <working_dir>
   agentsapi projects remove <id>
   agentsapi projects config <id> [<codex|claude|gemini> ["<argomenti agente>"|--clear]]
-  agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--config "<argomenti agente>"] <prompt>
+  agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--session-id <id>] [--timeout-ms <ms>] [--config "<argomenti agente>"] <prompt>
 
 Regola di override:
   config richiesta API/CLI > config progetto/agente > config condivisa/agente.
@@ -39,7 +39,7 @@ Esempi:
   agentsapi config set gemini "--model gemini-2.5-pro"
   agentsapi projects add demo C:\\repo\\demo
   agentsapi projects config demo claude "--model opus"
-  agentsapi run --agent gemini --project demo "Scrivi solo CIAO"
+  agentsapi run --agent gemini --project demo --session-id 550e8400-e29b-41d4-a716-446655440000 "Scrivi solo CIAO"
   agentsapi serve --host 0.0.0.0 --port 7357 --log-level info`);
 }
 
@@ -394,6 +394,18 @@ function parseRunArgs(args) {
       continue;
     }
 
+    if (arg === '--session-id' || arg === '--sessionId') {
+      request.sessionId = requireArg(args[index + 1], '--session-id');
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--timeout-ms' || arg === '--timeoutMs') {
+      request.timeoutMs = requireArg(args[index + 1], '--timeout-ms');
+      index += 1;
+      continue;
+    }
+
     promptParts.push(arg);
   }
 
@@ -411,6 +423,8 @@ async function handleRun(args) {
     config: resolved.config,
     prompt: request.prompt,
     cwd: resolved.cwd,
+    sessionId: request.sessionId,
+    timeoutMs: request.timeoutMs,
   });
 
   console.log(JSON.stringify({

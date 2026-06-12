@@ -8,8 +8,12 @@ const AGENTS = {
     defaultCommand: 'codex',
     versionArgs: ['--version'],
     authArgs: ['login', 'status'],
-    buildArgs(configString, prompt) {
-      return ['exec', ...splitArgsString(configString), prompt];
+    buildArgs(configString, prompt, options = {}) {
+      const configArgs = splitArgsString(configString);
+      if (options.sessionId) {
+        return ['exec', ...configArgs, 'resume', options.sessionId, prompt];
+      }
+      return ['exec', ...configArgs, prompt];
     },
   },
   claude: {
@@ -19,8 +23,12 @@ const AGENTS = {
     defaultCommand: 'claude',
     versionArgs: ['--version'],
     authArgs: ['auth', 'status'],
-    buildArgs(configString, prompt) {
-      return ['-p', ...splitArgsString(configString), prompt];
+    buildArgs(configString, prompt, options = {}) {
+      const configArgs = splitArgsString(configString);
+      if (options.sessionId) {
+        return ['-p', '--resume', options.sessionId, ...configArgs, prompt];
+      }
+      return ['-p', ...configArgs, prompt];
     },
   },
   gemini: {
@@ -30,8 +38,12 @@ const AGENTS = {
     defaultCommand: 'gemini',
     versionArgs: ['--version'],
     authCheck: 'gemini-configured-auth',
-    buildArgs(configString, prompt) {
-      return [...splitArgsString(configString), '-p', prompt];
+    buildArgs(configString, prompt, options = {}) {
+      const configArgs = splitArgsString(configString);
+      if (options.sessionId) {
+        return ['--resume', options.sessionId, ...configArgs, prompt];
+      }
+      return [...configArgs, prompt];
     },
   },
 };

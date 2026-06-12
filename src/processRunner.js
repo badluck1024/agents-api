@@ -107,13 +107,53 @@ function spawnProcess({ command, args = [], cwd, env }) {
   });
 }
 
+function killProcessTree(child) {
+  if (!child || !child.pid || child.killed) {
+    return;
+  }
+
+  if (process.platform === 'win32') {
+    const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    killer.on('error', () => {
+      child.kill();
+    });
+    return;
+  }
+
+  child.kill();
+}
+
 function runProcess(options) {
   return new Promise((resolve) => {
     let child;
     let stdout = '';
     let stderr = '';
     let completed = false;
+    let timedOut = false;
     let timeout = null;
+    let killFallback = null;
+
+    function finish(code) {
+      if (completed) {
+        return;
+      }
+      completed = true;
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      if (killFallback) {
+        clearTimeout(killFallback);
+      }
+      resolve({
+        code: code === null || code === undefined ? 1 : code,
+        stdout: stdout.trim(),
+        stderr: stderr.trim(),
+        ...(timedOut ? { timedOut: true } : {}),
+      });
+    }
 
     try {
       child = spawnProcess(options);
@@ -127,12 +167,15 @@ function runProcess(options) {
         if (completed) {
           return;
         }
-        completed = true;
+        timedOut = true;
         stderr += `Process timed out after ${options.timeoutMs}ms`;
-        if (child && !child.killed) {
-          child.kill();
+        killProcessTree(child);
+        killFallback = setTimeout(() => {
+          finish(1);
+        }, 2000);
+        if (typeof killFallback.unref === 'function') {
+          killFallback.unref();
         }
-        resolve({ code: 1, stdout: stdout.trim(), stderr: stderr.trim(), timedOut: true });
       }, Number(options.timeoutMs));
     }
 
@@ -149,14 +192,7 @@ function runProcess(options) {
     });
 
     child.on('close', (code) => {
-      if (completed) {
-        return;
-      }
-      completed = true;
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-      resolve({ code, stdout: stdout.trim(), stderr: stderr.trim() });
+      finish(code);
     });
   });
 }
@@ -173,6 +209,7 @@ async function commandExists(command, args = ['--version']) {
 
 module.exports = {
   commandExists,
+  killProcessTree,
   prepareCommand,
   runProcess,
   spawnProcess,

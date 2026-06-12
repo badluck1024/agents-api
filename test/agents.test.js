@@ -46,6 +46,27 @@ test('buildAgentArgs constructs codex command arguments', () => {
   );
 });
 
+test('buildAgentArgs constructs codex resume command arguments', () => {
+  assert.deepEqual(
+    buildAgentArgs(
+      'codex',
+      '--json --model gpt-5.5 --skip-git-repo-check',
+      'Continua',
+      { sessionId: '019-session' }
+    ),
+    [
+      'exec',
+      '--json',
+      '--model',
+      'gpt-5.5',
+      '--skip-git-repo-check',
+      'resume',
+      '019-session',
+      'Continua',
+    ]
+  );
+});
+
 test('buildAgentArgs constructs claude command arguments', () => {
   assert.deepEqual(
     buildAgentArgs(
@@ -66,6 +87,29 @@ test('buildAgentArgs constructs claude command arguments', () => {
   );
 });
 
+test('buildAgentArgs constructs claude resume command arguments', () => {
+  assert.deepEqual(
+    buildAgentArgs(
+      'claude',
+      '--output-format json --model claude-opus-4-8 --effort max',
+      'Continua',
+      { sessionId: 'claude-session' }
+    ),
+    [
+      '-p',
+      '--resume',
+      'claude-session',
+      '--output-format',
+      'json',
+      '--model',
+      'claude-opus-4-8',
+      '--effort',
+      'max',
+      'Continua',
+    ]
+  );
+});
+
 test('buildAgentArgs constructs gemini command arguments', () => {
   assert.deepEqual(
     buildAgentArgs(
@@ -80,8 +124,40 @@ test('buildAgentArgs constructs gemini command arguments', () => {
       'gemini-3-pro-preview',
       '--approval-mode',
       'yolo',
-      '-p',
       'Scrivi solo CIAO',
     ]
+  );
+});
+
+test('buildAgentArgs constructs gemini resume command arguments', () => {
+  assert.deepEqual(
+    buildAgentArgs(
+      'gemini',
+      '--output-format stream-json --model gemini-3-pro-preview --approval-mode yolo',
+      'Continua',
+      { sessionId: 'gemini-session' }
+    ),
+    [
+      '--resume',
+      'gemini-session',
+      '--output-format',
+      'stream-json',
+      '--model',
+      'gemini-3-pro-preview',
+      '--approval-mode',
+      'yolo',
+      'Continua',
+    ]
+  );
+});
+
+test('buildAgentArgs validates sessionId', () => {
+  assert.throws(
+    () => buildAgentArgs('codex', '--json', 'Prompt', { sessionId: '' }),
+    /sessionId/
+  );
+  assert.throws(
+    () => buildAgentArgs('codex', '--json', 'Prompt', { sessionId: 123 }),
+    /sessionId/
   );
 });

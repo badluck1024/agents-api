@@ -28,6 +28,10 @@ if (args.includes('--fail')) {
   console.error('fake failure');
   process.exit(2);
 }
+if (args.includes('--hang')) {
+  setTimeout(() => {}, 60 * 1000);
+  return;
+}
 if (agentId === 'codex') {
   console.error('Reading additional input from stdin...');
   console.log(JSON.stringify({ type: 'thread.started', thread_id: 'fake-thread' }));
@@ -287,6 +291,130 @@ test('POST /api/runs returns normalized claude json output', async () => {
   }
 });
 
+test('POST /api/runs passes sessionId to codex resume command', async () => {
+  const directory = createTempDir();
+  const command = createFakeAgentCommand(directory, 'codex');
+  const restoreHome = writeConfig({
+    directory,
+    agentId: 'codex',
+    agentConfig: '--json',
+    command,
+  });
+  const server = createServer();
+
+  try {
+    const port = await listen(server);
+    const response = await request({
+      port,
+      path: '/api/runs',
+      body: {
+        agent: 'codex',
+        prompt: 'Continua',
+        sessionId: '019-session',
+        responseMode: 'raw',
+      },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json.sessionId, '019-session');
+    assert.deepEqual(response.json.args, ['exec', '--json', 'resume', '019-session', 'Continua']);
+  } finally {
+    await closeServer(server);
+    restoreHome();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('POST /api/runs rejects invalid sessionId', async () => {
+  const directory = createTempDir();
+  const command = createFakeAgentCommand(directory, 'codex');
+  const restoreHome = writeConfig({
+    directory,
+    agentId: 'codex',
+    agentConfig: '--json',
+    command,
+  });
+  const server = createServer();
+
+  try {
+    const port = await listen(server);
+    const response = await request({
+      port,
+      path: '/api/runs',
+      body: { agent: 'codex', prompt: 'CIAO', sessionId: '' },
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.match(response.json.error, /sessionId/);
+  } finally {
+    await closeServer(server);
+    restoreHome();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('POST /api/runs terminates agent after timeoutMs', async () => {
+  const directory = createTempDir();
+  const command = createFakeAgentCommand(directory, 'gemini');
+  const restoreHome = writeConfig({
+    directory,
+    agentId: 'gemini',
+    agentConfig: '--hang',
+    command,
+  });
+  const server = createServer();
+
+  try {
+    const port = await listen(server);
+    const response = await request({
+      port,
+      path: '/api/runs',
+      body: {
+        agent: 'gemini',
+        prompt: 'CIAO',
+        timeoutMs: 25,
+        responseMode: 'raw',
+      },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json.timedOut, true);
+    assert.match(response.json.stderr, /timed out/);
+  } finally {
+    await closeServer(server);
+    restoreHome();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('POST /api/runs rejects invalid timeoutMs', async () => {
+  const directory = createTempDir();
+  const command = createFakeAgentCommand(directory, 'codex');
+  const restoreHome = writeConfig({
+    directory,
+    agentId: 'codex',
+    agentConfig: '--json',
+    command,
+  });
+  const server = createServer();
+
+  try {
+    const port = await listen(server);
+    const response = await request({
+      port,
+      path: '/api/runs',
+      body: { agent: 'codex', prompt: 'CIAO', timeoutMs: 0 },
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.match(response.json.error, /timeoutMs/);
+  } finally {
+    await closeServer(server);
+    restoreHome();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('POST /api/runs/stream returns normalized gemini stream output', async () => {
   const directory = createTempDir();
   const command = createFakeAgentCommand(directory, 'gemini');
@@ -315,6 +443,51 @@ test('POST /api/runs/stream returns normalized gemini stream output', async () =
     );
     assert.equal(events.at(-1).event, 'exit');
     assert.equal(events.at(-1).data.output, 'ACK:CIAO');
+  } finally {
+    await closeServer(server);
+    restoreHome();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('POST /api/runs/stream includes requested sessionId', async () => {
+  const directory = createTempDir();
+  const command = createFakeAgentCommand(directory, 'claude');
+  const restoreHome = writeConfig({
+    directory,
+    agentId: 'claude',
+    agentConfig: '--output-format text',
+    command,
+  });
+  const server = createServer();
+
+  try {
+    const port = await listen(server);
+    const response = await request({
+      port,
+      path: '/api/runs/stream',
+      body: {
+        agent: 'claude',
+        prompt: 'Continua',
+        sessionId: 'claude-session',
+        responseMode: 'raw',
+      },
+    });
+    const events = parseSseEvents(response.text);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(events[0].event, 'start');
+    assert.equal(events[0].data.sessionId, 'claude-session');
+    assert.deepEqual(events[0].data.args, [
+      '-p',
+      '--resume',
+      'claude-session',
+      '--output-format',
+      'text',
+      'Continua',
+    ]);
+    assert.equal(events.at(-1).event, 'exit');
+    assert.equal(events.at(-1).data.sessionId, 'claude-session');
   } finally {
     await closeServer(server);
     restoreHome();
