@@ -3,7 +3,7 @@ function generateOpenApiSpec() {
     openapi: '3.1.0',
     info: {
       title: 'agents-api',
-      version: '0.2.3',
+      version: '0.2.4',
       description: 'HTTP API minimale per eseguire agenti CLI installati localmente.',
     },
     security: [
@@ -98,6 +98,10 @@ function generateOpenApiSpec() {
               type: 'string',
               description: 'ID opzionale del progetto configurato. Se presente usa la working_dir del progetto.',
             },
+            sessionId: {
+              type: 'string',
+              description: 'ID opzionale della sessione agente da riprendere. Deve appartenere allo stesso agente e alla stessa macchina.',
+            },
             config: {
               type: 'string',
               description: 'Stringa opzionale di argomenti agente. Se presente sovrascrive config progetto o condivisa.',
@@ -107,6 +111,11 @@ function generateOpenApiSpec() {
               enum: ['normalized', 'raw'],
               default: 'normalized',
               description: '`normalized` restituisce output agentico pulito. `raw` restituisce stdout/stderr/args tecnici.',
+            },
+            timeoutMs: {
+              type: 'integer',
+              minimum: 1,
+              description: 'Timeout opzionale in millisecondi per terminare il processo agente.',
             },
           },
           additionalProperties: false,
@@ -126,6 +135,7 @@ function generateOpenApiSpec() {
             project: { type: ['string', 'null'] },
             ok: { type: 'boolean' },
             exitCode: { type: 'integer' },
+            timedOut: { type: 'boolean' },
             output: { type: 'string' },
             sessionId: { type: ['string', 'null'] },
             usage: { type: ['object', 'null'] },
@@ -146,10 +156,13 @@ function generateOpenApiSpec() {
             agent: { type: 'string', enum: ['codex', 'claude', 'gemini'] },
             provider: { type: 'string', enum: ['codex', 'claude', 'gemini'] },
             project: { type: ['string', 'null'] },
+            sessionId: { type: ['string', 'null'] },
             command: { type: 'string' },
             args: { type: 'array', items: { type: 'string' } },
             cwd: { type: 'string' },
             config: { type: 'string' },
+            timeoutMs: { type: ['integer', 'null'] },
+            timedOut: { type: 'boolean' },
             exitCode: { type: 'integer' },
             stdout: { type: 'string' },
             stderr: { type: 'string' },

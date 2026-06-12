@@ -1,5 +1,9 @@
 # agents-api
 
+[![npm version](https://img.shields.io/npm/v/agents-api.svg)](https://www.npmjs.com/package/agents-api)
+[![npm downloads](https://img.shields.io/npm/dm/agents-api.svg)](https://www.npmjs.com/package/agents-api)
+[![license](https://img.shields.io/npm/l/agents-api.svg)](https://github.com/badluck1024/agents-api/blob/main/LICENSE)
+
 Run local AI agent CLIs through a small HTTP API.
 
 `agents-api` exposes a consistent API for installed command-line agents such as Codex, Claude Code, and Gemini CLI. It is designed for machines where one or more supported agents are already available and authenticated.
@@ -12,7 +16,7 @@ This package is implemented with Codex.
 | --- | --- | --- |
 | Codex | `codex` | `codex exec ... <prompt>` |
 | Claude Code | `claude` | `claude -p ... <prompt>` |
-| Gemini CLI | `gemini` | `gemini ... -p <prompt>` |
+| Gemini CLI | `gemini` | `gemini ... <prompt>` |
 
 At least one supported agent must be installed and authenticated before the HTTP server can start.
 
@@ -40,7 +44,7 @@ agentsapi --version
 Expected version:
 
 ```text
-0.2.3
+0.2.4
 ```
 
 ## Quick Start
@@ -149,7 +153,7 @@ Configure only agent options. `agentsapi` supplies the command form used to pass
 | --- | --- |
 | Codex | `codex exec ... <prompt>` |
 | Claude Code | `claude -p ... <prompt>` |
-| Gemini CLI | `gemini ... -p <prompt>` |
+| Gemini CLI | `gemini ... <prompt>` |
 
 Full automation profile:
 
@@ -279,7 +283,9 @@ Request body:
   "agent": "codex",
   "project": "webapp",
   "prompt": "Write only CIAO",
+  "sessionId": "019...",
   "config": "--json --model gpt-5",
+  "timeoutMs": 600000,
   "responseMode": "normalized"
 }
 ```
@@ -292,7 +298,9 @@ Fields:
 | `agent` | No | `codex`, `claude`, or `gemini` |
 | `provider` | No | Alias of `agent` |
 | `project` | No | Project ID used to select working directory and project config |
+| `sessionId` | No | Agent session to resume |
 | `config` | No | Request-level argument string |
+| `timeoutMs` | No | Positive integer timeout in milliseconds |
 | `responseMode` | No | `normalized` or `raw` |
 
 If neither `agent` nor `provider` is provided, the configured fallback agent is used. Without a fallback agent, the request is rejected.
@@ -307,6 +315,7 @@ Normalized response:
   "project": "webapp",
   "ok": true,
   "exitCode": 0,
+  "timedOut": false,
   "output": "CIAO",
   "sessionId": "019...",
   "usage": null,
@@ -327,13 +336,40 @@ Raw response:
 
 Raw mode returns command metadata, `stdout`, and `stderr`.
 
+If `timeoutMs` is provided and the agent process does not finish in time, `agents-api` terminates the process and returns `timedOut: true`.
+
 For Codex, Claude Code, and Gemini CLI, normalized mode extracts the assistant text from the agent output format in use. Text output, JSON output, and streaming JSON output are mapped to the same response shape.
+
+### Session Resume
+
+Normalized responses include `sessionId` when the selected agent exposes it. Pass that value in a later `/api/runs` or `/api/runs/stream` request to continue the same conversation.
+
+```json
+{
+  "agent": "codex",
+  "project": "webapp",
+  "sessionId": "019...",
+  "prompt": "Continue from the previous result"
+}
+```
+
+Session resume uses each agent's native local session store:
+
+| Agent | Resume command shape |
+| --- | --- |
+| Codex | `codex exec ... resume <sessionId> <prompt>` |
+| Claude Code | `claude -p --resume <sessionId> ... <prompt>` |
+| Gemini CLI | `gemini --resume <sessionId> ... <prompt>` |
+
+Use the same agent, machine, and project working directory that created the session. Agent session files are local, so a session ID from one machine is not automatically available on another machine.
 
 ## Streaming API
 
 ### `POST /api/runs/stream`
 
 Uses the same request body as `/api/runs`.
+
+Use this endpoint with agent output formats that emit progressive events. Codex `--json`, Claude Code `--output-format stream-json`, and Gemini CLI `--output-format stream-json` are suitable choices. Non-streaming formats such as Claude Code or Gemini CLI `--output-format json` are valid, but most output is emitted only after the agent process completes.
 
 Normalized stream events:
 
@@ -380,7 +416,7 @@ agentsapi projects list
 agentsapi projects add <id> <working_dir>
 agentsapi projects remove <id>
 agentsapi projects config <id> [<codex|claude|gemini> ["<agent args>"|--clear]]
-agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--config "<agent args>"] <prompt>
+agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--session-id <id>] [--timeout-ms <ms>] [--config "<agent args>"] <prompt>
 agentsapi logs get
 agentsapi logs level <debug|info|warning|error|off>
 agentsapi logs requests <on|off>

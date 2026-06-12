@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.2.4 - 2026-06-12
+
+### Added
+
+- Run requests can resume an existing agent session by passing `sessionId`.
+- Run requests can set `timeoutMs` to terminate long-running agent processes.
+
+### Changed
+
+- Gemini CLI runs now use the positional prompt form.
+- Timed-out processes are terminated with their child processes.
+
 ## 0.2.3 - 2026-06-11
 
 ### Fixed

@@ -6,6 +6,7 @@ const { checkAllAgentsReady, formatAgentStatus, formatNoReadyAgentsFailure, read
 const { runAgent, spawnAgent } = require('./agentRunner');
 const { createLogger } = require('./logger');
 const { generateOpenApiSpec, swaggerHtml } = require('./openapi');
+const { killProcessTree } = require('./processRunner');
 
 let nextRequestNumber = 0;
 let runtimeAgentStatuses = [];
@@ -68,6 +69,8 @@ function classifyError(error) {
 
   if (
     message.includes('prompt') ||
+    message.includes('sessionId') ||
+    message.includes('timeoutMs') ||
     message.includes('agent o provider') ||
     message.includes('JSON non valido') ||
     message.includes('Virgolette non chiuse') ||
@@ -169,6 +172,8 @@ function logRunRequest(context, body, resolved) {
     cwd: resolved.cwd,
     responseMode,
     hasRequestConfig: Object.prototype.hasOwnProperty.call(body, 'config'),
+    hasSessionId: typeof body.sessionId === 'string' && body.sessionId.trim() !== '',
+    timeoutMs: body.timeoutMs || undefined,
     configLength: String(resolved.config || '').length,
     promptLength: String(body.prompt || '').length,
   });
@@ -179,6 +184,8 @@ function logRunRequest(context, body, resolved) {
     project: resolved.projectId,
     responseMode,
     config: resolved.config,
+    sessionId: typeof body.sessionId === 'string' ? body.sessionId.trim() : undefined,
+    timeoutMs: body.timeoutMs || undefined,
     prompt: context.includePromptInLogs ? body.prompt : undefined,
   });
 }
@@ -194,12 +201,16 @@ function buildRunResponse(result, projectId, responseMode) {
     };
   }
 
+  const normalized = normalizeAgentResult(result);
+
   return {
     responseMode,
     agent: result.agent,
     provider: result.provider,
     project: projectId,
-    ...normalizeAgentResult(result),
+    ...normalized,
+    timedOut: result.timedOut === true,
+    sessionId: normalized.sessionId || result.sessionId || null,
   };
 }
 
@@ -223,6 +234,8 @@ async function handleRun(req, res, context) {
       config: resolved.config,
       prompt: body.prompt,
       cwd: resolved.cwd,
+      sessionId: body.sessionId,
+      timeoutMs: body.timeoutMs,
     });
 
     sendJson(res, 200, buildRunResponse(result, resolved.projectId, responseMode));
@@ -232,6 +245,7 @@ async function handleRun(req, res, context) {
       project: resolved.projectId,
       responseMode,
       exitCode: result.exitCode,
+      timedOut: result.timedOut === true,
       stdoutLength: String(result.stdout || '').length,
       stderrLength: String(result.stderr || '').length,
     });
@@ -250,6 +264,7 @@ async function handleRunStream(req, res, context) {
   let started = false;
   let finished = false;
   let child;
+  let streamTimedOut = false;
 
   try {
     const body = await readJsonBody(req);
@@ -264,10 +279,13 @@ async function handleRunStream(req, res, context) {
       config: resolved.config,
       prompt: body.prompt,
       cwd: resolved.cwd,
+      sessionId: body.sessionId,
+      timeoutMs: body.timeoutMs,
     });
 
     child = run.child;
     started = true;
+    let runTimeout = null;
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -280,6 +298,7 @@ async function handleRunStream(req, res, context) {
       agent: resolved.agentId,
       provider: resolved.agentId,
       project: resolved.projectId,
+      sessionId: run.sessionId || null,
       responseMode,
       ...(responseMode === 'raw'
         ? {
@@ -287,9 +306,27 @@ async function handleRunStream(req, res, context) {
             args: run.args,
             cwd: run.cwd,
             config: run.config,
+            timeoutMs: run.timeoutMs,
           }
         : {}),
     });
+
+    if (run.timeoutMs) {
+      runTimeout = setTimeout(() => {
+        if (finished) {
+          return;
+        }
+        streamTimedOut = true;
+        sseEvent(res, 'error', {
+          error: `Process timed out after ${run.timeoutMs}ms`,
+          timedOut: true,
+        });
+        killProcessTree(child);
+      }, run.timeoutMs);
+      if (typeof runTimeout.unref === 'function') {
+        runTimeout.unref();
+      }
+    }
 
     const normalizer = createAgentStreamNormalizer(resolved.agentId, resolved.config);
 
@@ -323,14 +360,20 @@ async function handleRunStream(req, res, context) {
 
     child.on('close', (code) => {
       finished = true;
+      if (runTimeout) {
+        clearTimeout(runTimeout);
+      }
+      const finalResult = responseMode === 'raw' ? null : normalizer.finish(code);
       const exitPayload = responseMode === 'raw'
-        ? { responseMode, exitCode: code }
+        ? { responseMode, exitCode: code, sessionId: run.sessionId || null, timedOut: streamTimedOut }
         : {
             responseMode,
             agent: resolved.agentId,
             provider: resolved.agentId,
             project: resolved.projectId,
-            ...normalizer.finish(code),
+            ...finalResult,
+            timedOut: streamTimedOut,
+            sessionId: finalResult.sessionId || run.sessionId || null,
           };
       context.logger.info('agent_stream_completed', {
         requestId: context.requestId,
@@ -345,7 +388,7 @@ async function handleRunStream(req, res, context) {
 
     req.on('close', () => {
       if (!finished && child && !child.killed) {
-        child.kill();
+        killProcessTree(child);
       }
     });
   } catch (error) {
