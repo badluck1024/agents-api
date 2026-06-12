@@ -41,9 +41,9 @@ const AGENTS = {
     buildArgs(configString, prompt, options = {}) {
       const configArgs = splitArgsString(configString);
       if (options.sessionId) {
-        return ['--resume', options.sessionId, ...configArgs, prompt];
+        return ['--resume', options.sessionId, ...configArgs, '--prompt', prompt];
       }
-      return [...configArgs, prompt];
+      return [...configArgs, '--prompt', prompt];
     },
   },
 };

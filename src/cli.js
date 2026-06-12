@@ -26,7 +26,7 @@ Uso:
   agentsapi projects add <id> <working_dir>
   agentsapi projects remove <id>
   agentsapi projects config <id> [<codex|claude|gemini> ["<argomenti agente>"|--clear]]
-  agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--session-id <id>] [--timeout-ms <ms>] [--config "<argomenti agente>"] <prompt>
+  agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--session-id <id>] [--timeout-ms <ms>] [--idle-timeout-ms <ms>] [--config "<argomenti agente>"] <prompt>
 
 Regola di override:
   config richiesta API/CLI > config progetto/agente > config condivisa/agente.
@@ -406,6 +406,12 @@ function parseRunArgs(args) {
       continue;
     }
 
+    if (arg === '--idle-timeout-ms' || arg === '--idleTimeoutMs') {
+      request.idleTimeoutMs = requireArg(args[index + 1], '--idle-timeout-ms');
+      index += 1;
+      continue;
+    }
+
     promptParts.push(arg);
   }
 
@@ -425,6 +431,7 @@ async function handleRun(args) {
     cwd: resolved.cwd,
     sessionId: request.sessionId,
     timeoutMs: request.timeoutMs,
+    idleTimeoutMs: request.idleTimeoutMs,
   });
 
   console.log(JSON.stringify({

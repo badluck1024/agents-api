@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.2.5 - 2026-06-12
+
+### Added
+
+- Run requests can set `idleTimeoutMs` to terminate agent processes that stop producing output.
+
+### Changed
+
+- Gemini CLI runs use the explicit `--prompt` flag for headless execution.
+
 ## 0.2.4 - 2026-06-12
 
 ### Added

@@ -16,7 +16,7 @@ This package is implemented with Codex.
 | --- | --- | --- |
 | Codex | `codex` | `codex exec ... <prompt>` |
 | Claude Code | `claude` | `claude -p ... <prompt>` |
-| Gemini CLI | `gemini` | `gemini ... <prompt>` |
+| Gemini CLI | `gemini` | `gemini ... --prompt <prompt>` |
 
 At least one supported agent must be installed and authenticated before the HTTP server can start.
 
@@ -44,7 +44,7 @@ agentsapi --version
 Expected version:
 
 ```text
-0.2.4
+0.2.5
 ```
 
 ## Quick Start
@@ -153,7 +153,7 @@ Configure only agent options. `agentsapi` supplies the command form used to pass
 | --- | --- |
 | Codex | `codex exec ... <prompt>` |
 | Claude Code | `claude -p ... <prompt>` |
-| Gemini CLI | `gemini ... <prompt>` |
+| Gemini CLI | `gemini ... --prompt <prompt>` |
 
 Full automation profile:
 
@@ -286,6 +286,7 @@ Request body:
   "sessionId": "019...",
   "config": "--json --model gpt-5",
   "timeoutMs": 600000,
+  "idleTimeoutMs": 30000,
   "responseMode": "normalized"
 }
 ```
@@ -301,6 +302,7 @@ Fields:
 | `sessionId` | No | Agent session to resume |
 | `config` | No | Request-level argument string |
 | `timeoutMs` | No | Positive integer timeout in milliseconds |
+| `idleTimeoutMs` | No | Positive integer timeout in milliseconds without stdout/stderr output |
 | `responseMode` | No | `normalized` or `raw` |
 
 If neither `agent` nor `provider` is provided, the configured fallback agent is used. Without a fallback agent, the request is rejected.
@@ -316,6 +318,7 @@ Normalized response:
   "ok": true,
   "exitCode": 0,
   "timedOut": false,
+  "idleTimedOut": false,
   "output": "CIAO",
   "sessionId": "019...",
   "usage": null,
@@ -336,7 +339,7 @@ Raw response:
 
 Raw mode returns command metadata, `stdout`, and `stderr`.
 
-If `timeoutMs` is provided and the agent process does not finish in time, `agents-api` terminates the process and returns `timedOut: true`.
+If `timeoutMs` is provided and the agent process does not finish in time, `agents-api` terminates the process and returns `timedOut: true`. If `idleTimeoutMs` is provided and the agent process stops producing stdout/stderr output, `agents-api` terminates the process and returns `idleTimedOut: true`.
 
 For Codex, Claude Code, and Gemini CLI, normalized mode extracts the assistant text from the agent output format in use. Text output, JSON output, and streaming JSON output are mapped to the same response shape.
 
@@ -359,7 +362,7 @@ Session resume uses each agent's native local session store:
 | --- | --- |
 | Codex | `codex exec ... resume <sessionId> <prompt>` |
 | Claude Code | `claude -p --resume <sessionId> ... <prompt>` |
-| Gemini CLI | `gemini --resume <sessionId> ... <prompt>` |
+| Gemini CLI | `gemini --resume <sessionId> ... --prompt <prompt>` |
 
 Use the same agent, machine, and project working directory that created the session. Agent session files are local, so a session ID from one machine is not automatically available on another machine.
 
@@ -416,7 +419,7 @@ agentsapi projects list
 agentsapi projects add <id> <working_dir>
 agentsapi projects remove <id>
 agentsapi projects config <id> [<codex|claude|gemini> ["<agent args>"|--clear]]
-agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--session-id <id>] [--timeout-ms <ms>] [--config "<agent args>"] <prompt>
+agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--session-id <id>] [--timeout-ms <ms>] [--idle-timeout-ms <ms>] [--config "<agent args>"] <prompt>
 agentsapi logs get
 agentsapi logs level <debug|info|warning|error|off>
 agentsapi logs requests <on|off>

@@ -133,8 +133,54 @@ function runProcess(options) {
     let stderr = '';
     let completed = false;
     let timedOut = false;
+    let idleTimedOut = false;
     let timeout = null;
+    let idleTimeout = null;
     let killFallback = null;
+
+    function clearIdleTimeout() {
+      if (idleTimeout) {
+        clearTimeout(idleTimeout);
+        idleTimeout = null;
+      }
+    }
+
+    function terminateAfterTimeout(message, kind) {
+      if (completed || timedOut || idleTimedOut) {
+        return;
+      }
+
+      if (kind === 'idle') {
+        idleTimedOut = true;
+      } else {
+        timedOut = true;
+      }
+
+      stderr += message;
+      clearIdleTimeout();
+      killProcessTree(child);
+      killFallback = setTimeout(() => {
+        finish(1);
+      }, 2000);
+      if (typeof killFallback.unref === 'function') {
+        killFallback.unref();
+      }
+    }
+
+    function refreshIdleTimeout() {
+      const idleTimeoutMs = Number(options.idleTimeoutMs || 0);
+      if (!idleTimeoutMs || idleTimeoutMs <= 0 || completed || timedOut || idleTimedOut) {
+        return;
+      }
+
+      clearIdleTimeout();
+      idleTimeout = setTimeout(() => {
+        terminateAfterTimeout(`Process produced no output for ${idleTimeoutMs}ms`, 'idle');
+      }, idleTimeoutMs);
+      if (typeof idleTimeout.unref === 'function') {
+        idleTimeout.unref();
+      }
+    }
 
     function finish(code) {
       if (completed) {
@@ -147,11 +193,13 @@ function runProcess(options) {
       if (killFallback) {
         clearTimeout(killFallback);
       }
+      clearIdleTimeout();
       resolve({
         code: code === null || code === undefined ? 1 : code,
         stdout: stdout.trim(),
         stderr: stderr.trim(),
         ...(timedOut ? { timedOut: true } : {}),
+        ...(idleTimedOut ? { idleTimedOut: true } : {}),
       });
     }
 
@@ -167,24 +215,20 @@ function runProcess(options) {
         if (completed) {
           return;
         }
-        timedOut = true;
-        stderr += `Process timed out after ${options.timeoutMs}ms`;
-        killProcessTree(child);
-        killFallback = setTimeout(() => {
-          finish(1);
-        }, 2000);
-        if (typeof killFallback.unref === 'function') {
-          killFallback.unref();
-        }
+        terminateAfterTimeout(`Process timed out after ${options.timeoutMs}ms`, 'total');
       }, Number(options.timeoutMs));
     }
 
+    refreshIdleTimeout();
+
     child.stdout.on('data', (chunk) => {
       stdout += String(chunk || '');
+      refreshIdleTimeout();
     });
 
     child.stderr.on('data', (chunk) => {
       stderr += String(chunk || '');
+      refreshIdleTimeout();
     });
 
     child.on('error', (error) => {
