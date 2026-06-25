@@ -18,7 +18,7 @@ async function checkCodexReady(command = 'codex') {
       ready: false,
       command,
       version: '',
-      error: compactOutput(version) || `Comando non eseguibile: ${command}`,
+      error: compactOutput(version) || `Command is not executable: ${command}`,
     };
   }
 
@@ -31,7 +31,7 @@ async function checkCodexReady(command = 'codex') {
       ready: false,
       command,
       version: compactOutput(version),
-      error: compactOutput(login) || 'Codex non risulta autenticato.',
+      error: compactOutput(login) || 'Codex is not authenticated.',
     };
   }
 
@@ -48,24 +48,24 @@ async function checkCodexReady(command = 'codex') {
 function formatCodexReadinessFailure(status) {
   if (!status.installed) {
     return [
-      'Codex CLI non risulta installato o non e eseguibile.',
-      `Comando configurato: ${status.command}`,
-      status.error ? `Errore: ${status.error}` : '',
-      'Installa Codex CLI e verifica con: codex --version',
+      'Codex CLI is not installed or is not executable.',
+      `Configured command: ${status.command}`,
+      status.error ? `Error: ${status.error}` : '',
+      'Install Codex CLI and verify it with: codex --version',
     ]
       .filter(Boolean)
       .join('\n');
   }
 
   return [
-    'Codex CLI e installato ma non risulta autenticato correttamente.',
-    `Comando configurato: ${status.command}`,
-    status.version ? `Versione: ${status.version}` : '',
-    status.error ? `Errore: ${status.error}` : '',
-    'Esegui sulla stessa utenza Linux/Windows che avvia agentsapi:',
+    'Codex CLI is installed but is not authenticated correctly.',
+    `Configured command: ${status.command}`,
+    status.version ? `Version: ${status.version}` : '',
+    status.error ? `Error: ${status.error}` : '',
+    'Run these commands as the same Linux/Windows user that starts agentsapi:',
     '  codex login status',
     '  codex login --device-auth',
-    'Poi riavvia agentsapi.',
+    'Then restart agentsapi.',
   ]
     .filter(Boolean)
     .join('\n');

@@ -7,12 +7,14 @@ const {
   createAgentStreamNormalizer,
   createCodexStreamNormalizer,
   normalizeAgentResult,
+  normalizeAntigravityResult,
   normalizeClaudeResult,
   normalizeCodexResult,
-  normalizeGeminiResult,
   normalizeResponseMode,
 } = require('./codexOutput');
 const { defaultConfig, getConfigPath, getStateDir, loadConfig, resolveRunConfig, saveConfig } = require('./config');
+const { createOutputSignature } = require('./compat/outputSignature');
+const { detectOutputFormatForAgent, resolveParserProfile } = require('./compat/parserRegistry');
 const { createLogger, normalizeLogLevel } = require('./logger');
 const { createServer, startServer } = require('./server');
 
@@ -22,9 +24,11 @@ module.exports = {
   checkAllAgentsReady,
   createAgentStreamNormalizer,
   createCodexStreamNormalizer,
+  createOutputSignature,
   createLogger,
   createServer,
   defaultConfig,
+  detectOutputFormatForAgent,
   generateApiKey,
   getAgent,
   getConfigPath,
@@ -34,12 +38,13 @@ module.exports = {
   maskApiKey,
   normalizeAgentId,
   normalizeAgentResult,
+  normalizeAntigravityResult,
   normalizeClaudeResult,
   normalizeCodexResult,
-  normalizeGeminiResult,
   normalizeLogLevel,
   normalizeResponseMode,
   resolveApiKey,
+  resolveParserProfile,
   resolveRunConfig,
   runAgent,
   saveConfig,

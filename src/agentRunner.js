@@ -4,18 +4,18 @@ const { runProcess, spawnProcess } = require('./processRunner');
 
 function ensurePrompt(prompt) {
   if (typeof prompt !== 'string' || prompt.trim() === '') {
-    throw new Error('Il campo prompt e obbligatorio.');
+    throw new Error('The prompt field is required.');
   }
 }
 
 function ensureWorkingDir(cwd) {
   if (!fs.existsSync(cwd)) {
-    throw new Error(`Working directory inesistente: ${cwd}`);
+    throw new Error(`Working directory does not exist: ${cwd}`);
   }
 
   const stat = fs.statSync(cwd);
   if (!stat.isDirectory()) {
-    throw new Error(`Working directory non valida: ${cwd}`);
+    throw new Error(`Invalid working directory: ${cwd}`);
   }
 }
 
@@ -25,12 +25,12 @@ function normalizeSessionId(value) {
   }
 
   if (typeof value !== 'string') {
-    throw new Error('Il campo sessionId deve essere una stringa.');
+    throw new Error('The sessionId field must be a string.');
   }
 
   const sessionId = value.trim();
   if (!sessionId) {
-    throw new Error('Il campo sessionId non puo essere vuoto.');
+    throw new Error('The sessionId field cannot be empty.');
   }
 
   return sessionId;
@@ -43,7 +43,7 @@ function normalizeTimeoutMs(value) {
 
   const timeoutMs = Number(value);
   if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-    throw new Error('Il campo timeoutMs deve essere un intero positivo.');
+    throw new Error('The timeoutMs field must be a positive integer.');
   }
 
   return timeoutMs;
@@ -56,7 +56,7 @@ function normalizeIdleTimeoutMs(value) {
 
   const idleTimeoutMs = Number(value);
   if (!Number.isInteger(idleTimeoutMs) || idleTimeoutMs <= 0) {
-    throw new Error('Il campo idleTimeoutMs deve essere un intero positivo.');
+    throw new Error('The idleTimeoutMs field must be a positive integer.');
   }
 
   return idleTimeoutMs;
@@ -68,12 +68,12 @@ function buildAgentArgs(agentId, configString, prompt, options = {}) {
   const normalizedAgentId = normalizeAgentId(agentId);
   const agent = getAgent(normalizedAgentId);
   if (!agent) {
-    throw new Error(`Agente non supportato: ${agentId}`);
+    throw new Error(`Unsupported agent: ${agentId}`);
   }
   return agent.buildArgs(configString, prompt, { sessionId });
 }
 
-async function runAgent({ agentId, command, config, prompt, cwd, sessionId, timeoutMs, idleTimeoutMs }) {
+async function runAgent({ agentId, command, config, prompt, cwd, sessionId, timeoutMs, idleTimeoutMs, agentVersion }) {
   ensureWorkingDir(cwd);
   const normalizedSessionId = normalizeSessionId(sessionId);
   const normalizedTimeoutMs = normalizeTimeoutMs(timeoutMs);
@@ -90,6 +90,7 @@ async function runAgent({ agentId, command, config, prompt, cwd, sessionId, time
   return {
     agent: agentId,
     provider: agentId,
+    agentVersion: agentVersion || '',
     command,
     args,
     cwd,
@@ -105,7 +106,7 @@ async function runAgent({ agentId, command, config, prompt, cwd, sessionId, time
   };
 }
 
-function spawnAgent({ agentId, command, config, prompt, cwd, sessionId, timeoutMs, idleTimeoutMs }) {
+function spawnAgent({ agentId, command, config, prompt, cwd, sessionId, timeoutMs, idleTimeoutMs, agentVersion }) {
   ensureWorkingDir(cwd);
   const normalizedSessionId = normalizeSessionId(sessionId);
   const normalizedTimeoutMs = normalizeTimeoutMs(timeoutMs);
@@ -116,6 +117,7 @@ function spawnAgent({ agentId, command, config, prompt, cwd, sessionId, timeoutM
   return {
     agent: agentId,
     provider: agentId,
+    agentVersion: agentVersion || '',
     child,
     command,
     args,

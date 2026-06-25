@@ -6,7 +6,7 @@
 
 Run local AI agent CLIs through a small HTTP API.
 
-`agents-api` exposes a consistent API for installed command-line agents such as Codex, Claude Code, and Gemini CLI. It is designed for machines where one or more supported agents are already available and authenticated.
+`agents-api` exposes a consistent API for installed command-line agents such as Codex, Claude Code, and Antigravity CLI. It is designed for machines where one or more supported agents are already available and authenticated.
 
 This package is implemented with Codex.
 
@@ -16,7 +16,7 @@ This package is implemented with Codex.
 | --- | --- | --- |
 | Codex | `codex` | `codex exec ... <prompt>` |
 | Claude Code | `claude` | `claude -p ... <prompt>` |
-| Gemini CLI | `gemini` | `gemini ... --prompt <prompt>` |
+| Antigravity CLI | `agy` | `agy ... --print <prompt>` |
 
 At least one supported agent must be installed and authenticated before the HTTP server can start.
 
@@ -44,7 +44,7 @@ agentsapi --version
 Expected version:
 
 ```text
-0.2.5
+0.2.6
 ```
 
 ## Quick Start
@@ -66,7 +66,7 @@ Configure an agent:
 ```bash
 agentsapi config set codex "--json --model gpt-5.5"
 agentsapi config set claude "--output-format text --model sonnet"
-agentsapi config set gemini "--output-format json --model gemini-3-pro-preview"
+agentsapi config set antigravity "--model gemini-3.5-flash"
 ```
 
 Set the fallback agent:
@@ -87,7 +87,7 @@ Call the API:
 curl http://127.0.0.1:7357/api/runs \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"agent":"codex","prompt":"Write only CIAO"}'
+  -d '{"agent":"codex","prompt":"Write only OK"}'
 ```
 
 ## Agent Status
@@ -118,7 +118,25 @@ When the HTTP server starts, it prints a compact line for each agent:
 
 If no agent is `READY`, the server exits.
 
-For Gemini CLI, authentication status is based on the configured non-interactive auth method, such as `GEMINI_API_KEY`, `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_GENAI_USE_GCA`, or the Gemini CLI settings file.
+Each supported CLI must be authenticated for the same OS user that starts `agents-api`. Readiness checks use the configured command path with the agent's native status command:
+
+| Agent | Authentication check |
+| --- | --- |
+| Codex | `codex login status` |
+| Claude Code | `claude auth status` |
+| Antigravity CLI | `agy models` |
+
+Complete the agent login in its CLI before using that agent through `agents-api`.
+
+Antigravity runs use print mode. For `/api/runs` and `/api/runs/stream`, `agents-api` reads the assistant response from stdout produced by `agy --print`, so the runtime environment that starts `agents-api` must be able to capture that output:
+
+```bash
+agy --print "Write only OK"
+```
+
+A successful check prints `OK` to stdout. If this command exits successfully but redirected or subprocess output is empty, Antigravity-backed API runs are reported as unsuccessful because there is no assistant output to return.
+
+Public issue reports tracking Antigravity CLI stdout capture behavior: [google-antigravity/antigravity-cli#76](https://github.com/google-antigravity/antigravity-cli/issues/76), [google-gemini/gemini-cli#27466](https://github.com/google-gemini/gemini-cli/issues/27466).
 
 ## Configuration
 
@@ -127,7 +145,7 @@ Each agent has a shared argument string. The string is appended to the agent com
 ```bash
 agentsapi config set codex '--json --model gpt-5 -c model_reasoning_effort=\"medium\"'
 agentsapi config set claude "--model sonnet --permission-mode plan"
-agentsapi config set gemini "--model gemini-2.5-pro"
+agentsapi config set antigravity "--model gemini-3.5-flash"
 ```
 
 Read or clear a shared configuration:
@@ -153,14 +171,14 @@ Configure only agent options. `agentsapi` supplies the command form used to pass
 | --- | --- |
 | Codex | `codex exec ... <prompt>` |
 | Claude Code | `claude -p ... <prompt>` |
-| Gemini CLI | `gemini ... --prompt <prompt>` |
+| Antigravity CLI | `agy ... --print <prompt>` |
 
 Full automation profile:
 
 ```bash
 agentsapi config set codex '--json --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --model gpt-5.5 -c model_reasoning_effort=\"xhigh\"'
 agentsapi config set claude "--output-format stream-json --dangerously-skip-permissions --verbose --model claude-opus-4-8 --effort max"
-agentsapi config set gemini "--output-format stream-json --model gemini-3-pro-preview --approval-mode yolo"
+agentsapi config set antigravity "--model gemini-3.5-flash --dangerously-skip-permissions"
 ```
 
 Machine-readable output without automatic tool approval:
@@ -168,7 +186,7 @@ Machine-readable output without automatic tool approval:
 ```bash
 agentsapi config set codex '--json --model gpt-5.5 -c model_reasoning_effort=\"medium\"'
 agentsapi config set claude "--output-format json --model sonnet --effort medium"
-agentsapi config set gemini "--output-format json --model gemini-3-pro-preview --approval-mode default"
+agentsapi config set antigravity "--model gemini-3.5-flash"
 ```
 
 Restricted tool execution:
@@ -176,7 +194,7 @@ Restricted tool execution:
 ```bash
 agentsapi config set codex '--json --model gpt-5.5 --sandbox read-only -c model_reasoning_effort=\"medium\"'
 agentsapi config set claude "--output-format text --model sonnet --permission-mode plan"
-agentsapi config set gemini "--output-format text --model gemini-3-pro-preview --approval-mode default"
+agentsapi config set antigravity "--model gemini-3.5-flash"
 ```
 
 ## Projects
@@ -194,7 +212,7 @@ Set project-level arguments:
 ```bash
 agentsapi projects config webapp codex "--json --model gpt-5 --sandbox workspace-write"
 agentsapi projects config webapp claude "--model opus"
-agentsapi projects config webapp gemini "--model gemini-2.5-pro"
+agentsapi projects config webapp antigravity "--model gemini-3.5-flash"
 ```
 
 List or remove projects:
@@ -282,7 +300,7 @@ Request body:
 {
   "agent": "codex",
   "project": "webapp",
-  "prompt": "Write only CIAO",
+  "prompt": "Write only OK",
   "sessionId": "019...",
   "config": "--json --model gpt-5",
   "timeoutMs": 600000,
@@ -296,7 +314,7 @@ Fields:
 | Field | Required | Description |
 | --- | --- | --- |
 | `prompt` | Yes | Prompt passed to the selected agent |
-| `agent` | No | `codex`, `claude`, or `gemini` |
+| `agent` | No | `codex`, `claude`, or `antigravity` |
 | `provider` | No | Alias of `agent` |
 | `project` | No | Project ID used to select working directory and project config |
 | `sessionId` | No | Agent session to resume |
@@ -319,7 +337,7 @@ Normalized response:
   "exitCode": 0,
   "timedOut": false,
   "idleTimedOut": false,
-  "output": "CIAO",
+  "output": "OK",
   "sessionId": "019...",
   "usage": null,
   "errors": [],
@@ -332,7 +350,7 @@ Raw response:
 ```json
 {
   "agent": "codex",
-  "prompt": "Write only CIAO",
+  "prompt": "Write only OK",
   "responseMode": "raw"
 }
 ```
@@ -341,7 +359,7 @@ Raw mode returns command metadata, `stdout`, and `stderr`.
 
 If `timeoutMs` is provided and the agent process does not finish in time, `agents-api` terminates the process and returns `timedOut: true`. If `idleTimeoutMs` is provided and the agent process stops producing stdout/stderr output, `agents-api` terminates the process and returns `idleTimedOut: true`.
 
-For Codex, Claude Code, and Gemini CLI, normalized mode extracts the assistant text from the agent output format in use. Text output, JSON output, and streaming JSON output are mapped to the same response shape.
+For Codex, Claude Code, and Antigravity CLI, normalized mode extracts assistant text from the agent output format in use. Structured formats from Codex and Claude Code are mapped to the same response shape as plain text output. Antigravity CLI responses are normalized from `agy --print` text output when that stdout is available to the `agents-api` process.
 
 ### Session Resume
 
@@ -362,7 +380,7 @@ Session resume uses each agent's native local session store:
 | --- | --- |
 | Codex | `codex exec ... resume <sessionId> <prompt>` |
 | Claude Code | `claude -p --resume <sessionId> ... <prompt>` |
-| Gemini CLI | `gemini --resume <sessionId> ... --prompt <prompt>` |
+| Antigravity CLI | `agy --conversation <sessionId> ... --print <prompt>` |
 
 Use the same agent, machine, and project working directory that created the session. Agent session files are local, so a session ID from one machine is not automatically available on another machine.
 
@@ -372,7 +390,7 @@ Use the same agent, machine, and project working directory that created the sess
 
 Uses the same request body as `/api/runs`.
 
-Use this endpoint with agent output formats that emit progressive events. Codex `--json`, Claude Code `--output-format stream-json`, and Gemini CLI `--output-format stream-json` are suitable choices. Non-streaming formats such as Claude Code or Gemini CLI `--output-format json` are valid, but most output is emitted only after the agent process completes.
+Use this endpoint with agent output formats that emit progressive events. Codex `--json` and Claude Code `--output-format stream-json` are suitable choices. Non-streaming formats such as Claude Code `--output-format json` and Antigravity CLI print mode are valid, but most output is emitted only after the agent process completes.
 
 Normalized stream events:
 
@@ -401,7 +419,7 @@ Example:
 curl -N http://127.0.0.1:7357/api/runs/stream \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"agent":"claude","prompt":"Write only CIAO","responseMode":"normalized"}'
+  -d '{"agent":"claude","prompt":"Write only OK","responseMode":"normalized"}'
 ```
 
 ## CLI Reference
@@ -411,15 +429,15 @@ agentsapi serve [--host <host>] [--port <port>] [--log-level <level>]
 agentsapi status
 agentsapi agents status
 agentsapi auth status|generate|set <token>|clear
-agentsapi config default get|set <codex|claude|gemini>|clear
-agentsapi config get <codex|claude|gemini>
-agentsapi config set <codex|claude|gemini> "<agent args>"
-agentsapi config clear <codex|claude|gemini>
+agentsapi config default get|set <codex|claude|antigravity>|clear
+agentsapi config get <codex|claude|antigravity>
+agentsapi config set <codex|claude|antigravity> "<agent args>"
+agentsapi config clear <codex|claude|antigravity>
 agentsapi projects list
 agentsapi projects add <id> <working_dir>
 agentsapi projects remove <id>
-agentsapi projects config <id> [<codex|claude|gemini> ["<agent args>"|--clear]]
-agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--session-id <id>] [--timeout-ms <ms>] [--idle-timeout-ms <ms>] [--config "<agent args>"] <prompt>
+agentsapi projects config <id> [<codex|claude|antigravity> ["<agent args>"|--clear]]
+agentsapi run [--agent <codex|claude|antigravity>] [--project <id>] [--session-id <id>] [--timeout-ms <ms>] [--idle-timeout-ms <ms>] [--config "<agent args>"] <prompt>
 agentsapi logs get
 agentsapi logs level <debug|info|warning|error|off>
 agentsapi logs requests <on|off>
@@ -464,7 +482,7 @@ Logs are emitted as JSON lines on stdout/stderr.
 | `AGENTSAPI_LOG_LEVEL` | Runtime log level |
 | `AGENTSAPI_CODEX_COMMAND` | Codex command path/name |
 | `AGENTSAPI_CLAUDE_COMMAND` | Claude Code command path/name |
-| `AGENTSAPI_GEMINI_COMMAND` | Gemini CLI command path/name |
+| `AGENTSAPI_ANTIGRAVITY_COMMAND` | Antigravity CLI command path/name |
 
 ## Production Notes
 
@@ -490,9 +508,10 @@ Common cases:
 | --- | --- |
 | `NOT_INSTALLED` | Install the agent CLI or configure the command path with the matching environment variable |
 | `NOT_AUTHENTICATED` | Run the agent login command as the same OS user that starts `agentsapi` |
+| Antigravity run returns empty output | Verify that `agy --print "Write only OK"` prints text when stdout is redirected or captured by the same runtime environment; use a Linux/WSL runtime for Antigravity-backed runs if the local Windows CLI exits with empty captured output |
 | `401 Unauthorized` from `agentsapi` | Send `Authorization: Bearer <token>` |
 | `400` for a request without `agent` | Pass `agent` or configure a fallback agent with `agentsapi config default set <agent>` |
-| `503 Agente non disponibile` | Select an installed and authenticated agent |
+| `503 Agent unavailable` | Select an installed and authenticated agent |
 
 ## License
 

@@ -1,4 +1,5 @@
 const { splitArgsString } = require('./argsString');
+const { resolveParserProfile } = require('./compat/parserRegistry');
 
 function parseJsonLine(line) {
   const trimmed = String(line || '').trim();
@@ -46,6 +47,24 @@ function detectOutputFormat(configString) {
   } catch {
     return '';
   }
+}
+
+function inferJsonOutputFormat(stdout) {
+  const text = String(stdout || '').trim();
+  if (!text) {
+    return '';
+  }
+
+  if (parseJsonDocument(text) !== null) {
+    return 'json';
+  }
+
+  const lines = text.split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length > 0 && lines.every((line) => parseJsonLine(line) !== null)) {
+    return 'stream-json';
+  }
+
+  return '';
 }
 
 function extractErrorMessage(event) {
@@ -376,73 +395,6 @@ function normalizeClaudeObject(value) {
   return events;
 }
 
-function normalizeGeminiObject(value) {
-  if (Array.isArray(value)) {
-    return value.flatMap(normalizeGeminiObject);
-  }
-
-  if (!value || typeof value !== 'object') {
-    return [];
-  }
-
-  const events = [];
-  const sessionId = value.session_id || value.sessionId;
-  if (typeof sessionId === 'string' && sessionId.trim()) {
-    events.push({ type: 'session', sessionId: sessionId.trim() });
-  }
-
-  const errorMessage = extractErrorMessage(value);
-  if (value.type === 'error' || errorMessage || value.error) {
-    events.push({ type: 'error', message: errorMessage || JSON.stringify(value.error || value) });
-  }
-
-  const usage = collectUsage(value, []);
-  if (usage) {
-    events.push({ type: 'usage', usage });
-  }
-
-  if (value.event && typeof value.event === 'object') {
-    events.push(...normalizeGeminiObject(value.event));
-  }
-
-  if (typeof value.response === 'string') {
-    events.push({ type: 'message', text: value.response });
-    return events;
-  }
-
-  const candidateText = extractCandidateText(value);
-  if (candidateText) {
-    events.push({ type: 'message', text: candidateText, appendToOutput: 'fallback' });
-    return events;
-  }
-
-  const deltaText = value.delta ? extractText(value.delta) : '';
-  if (deltaText) {
-    events.push({ type: 'message', text: deltaText, appendMode: 'concat' });
-    return events;
-  }
-
-  if (typeof value.result === 'string') {
-    events.push({ type: 'result', text: value.result });
-    return events;
-  }
-
-  if (typeof value.text === 'string') {
-    events.push({
-      type: 'message',
-      text: value.text,
-      appendMode: value.type && String(value.type).includes('delta') ? 'concat' : 'line',
-    });
-    return events;
-  }
-
-  if (value.type) {
-    events.push({ type: 'meta', eventType: value.type, event: value });
-  }
-
-  return events;
-}
-
 function normalizeJsonAwareResult(result, normalizeObject) {
   const summary = createSummary();
   const stdout = String(result.stdout || '');
@@ -526,6 +478,25 @@ function createGenericStreamNormalizer() {
   };
 }
 
+function createRequiredOutputStreamNormalizer(errorMessage) {
+  const normalizer = createGenericStreamNormalizer();
+  return {
+    pushStdout: normalizer.pushStdout,
+    pushStderr: normalizer.pushStderr,
+    finish(exitCode) {
+      const normalized = normalizer.finish(exitCode);
+      if (normalized.ok && !normalized.output) {
+        return {
+          ...normalized,
+          ok: false,
+          errors: [errorMessage],
+        };
+      }
+      return normalized;
+    },
+  };
+}
+
 function createLineStreamNormalizer(normalizeLine) {
   const summary = createSummary();
   let stdoutBuffer = '';
@@ -587,40 +558,67 @@ function normalizeClaudeResult(result) {
   return normalizeJsonAwareResult(result, normalizeClaudeObject);
 }
 
-function normalizeGeminiResult(result) {
-  return normalizeJsonAwareResult(result, normalizeGeminiObject);
+function normalizeAntigravityResult(result) {
+  const normalized = normalizeGenericResult(result);
+  if (normalized.ok && !normalized.output) {
+    return {
+      ...normalized,
+      ok: false,
+      errors: ['Antigravity CLI produced no output.'],
+    };
+  }
+  return normalized;
 }
 
-function normalizeAgentResult(result) {
-  if (result.agent === 'codex' || result.provider === 'codex') {
+function normalizeResultWithParser(result, parserProfile) {
+  const parserId = parserProfile && parserProfile.parserId ? parserProfile.parserId : 'generic-text-v1';
+
+  if (parserId === 'codex-jsonl-v1' || parserId === 'codex-text-v1') {
     return normalizeCodexResult(result, 'codex');
   }
-  if (result.agent === 'claude' || result.provider === 'claude') {
+
+  if (parserId === 'claude-json-v1' || parserId === 'claude-stream-json-v1') {
     return normalizeClaudeResult(result);
   }
-  if (result.agent === 'gemini' || result.provider === 'gemini') {
-    return normalizeGeminiResult(result);
-  }
+
   return normalizeGenericResult(result);
 }
 
-function createAgentStreamNormalizer(agentId = 'codex', configString = '') {
-  if (agentId === 'codex') {
+function normalizeAgentResult(result) {
+  const agentId = result.agent || result.provider;
+  if (agentId === 'antigravity') {
+    return normalizeAntigravityResult(result);
+  }
+  const explicitOutputFormat = detectOutputFormat(result.config || '');
+  const parserProfile = resolveParserProfile({
+    agentId,
+    version: result.agentVersion || '',
+    configString: result.config || '',
+    outputFormat: explicitOutputFormat || inferJsonOutputFormat(result.stdout),
+  });
+  return normalizeResultWithParser(result, parserProfile);
+}
+
+function createAgentStreamNormalizer(agentId = 'codex', configString = '', options = {}) {
+  if (agentId === 'antigravity') {
+    return createRequiredOutputStreamNormalizer('Antigravity CLI produced no output.');
+  }
+
+  const parserProfile = resolveParserProfile({
+    agentId,
+    version: options.agentVersion || '',
+    configString,
+  });
+  const parserId = parserProfile.parserId;
+
+  if (parserId === 'codex-jsonl-v1' || parserId === 'codex-text-v1') {
     return createLineStreamNormalizer(normalizeCodexLine);
   }
 
-  const outputFormat = detectOutputFormat(configString);
-  if (agentId === 'claude' && (outputFormat === 'json' || outputFormat === 'stream-json')) {
+  if (parserId === 'claude-json-v1' || parserId === 'claude-stream-json-v1') {
     return createLineStreamNormalizer((line) => {
       const parsed = parseJsonLine(line);
       return parsed ? normalizeClaudeObject(parsed) : normalizeGenericLine(line);
-    });
-  }
-
-  if (agentId === 'gemini' && (outputFormat === 'json' || outputFormat === 'stream-json')) {
-    return createLineStreamNormalizer((line) => {
-      const parsed = parseJsonLine(line);
-      return parsed ? normalizeGeminiObject(parsed) : normalizeGenericLine(line);
     });
   }
 
@@ -644,11 +642,12 @@ module.exports = {
   createAgentStreamNormalizer,
   createCodexStreamNormalizer,
   detectOutputFormat,
+  normalizeAntigravityResult,
   normalizeAgentResult,
   normalizeClaudeResult,
   normalizeCodexLine,
   normalizeCodexResult,
-  normalizeGeminiResult,
+  normalizeResultWithParser,
   normalizeResponseMode,
   parseJsonLine,
 };

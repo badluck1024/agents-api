@@ -49,16 +49,8 @@ if (agentId === 'claude') {
   }
   process.exit(0);
 }
-if (agentId === 'gemini') {
-  const outputFormat = optionValue('--output-format') || 'text';
-  if (outputFormat === 'stream-json') {
-    console.log(JSON.stringify({ delta: { text: 'ACK:' } }));
-    console.log(JSON.stringify({ delta: { text: prompt } }));
-  } else if (outputFormat === 'json') {
-    console.log(JSON.stringify({ response: 'ACK:' + prompt, stats: { total: 1 } }));
-  } else {
-    console.log('ACK:' + prompt);
-  }
+if (agentId === 'antigravity') {
+  console.log('ACK:' + prompt);
   process.exit(0);
 }
 console.log('ACK:' + prompt);
@@ -182,7 +174,7 @@ test('POST /api/runs requires bearer auth when API key is configured', async () 
     const unauthorized = await request({
       port,
       path: '/api/runs',
-      body: { agent: 'codex', prompt: 'CIAO' },
+      body: { agent: 'codex', prompt: 'HELLO' },
     });
     assert.equal(unauthorized.statusCode, 401);
 
@@ -190,10 +182,10 @@ test('POST /api/runs requires bearer auth when API key is configured', async () 
       port,
       path: '/api/runs',
       headers: { Authorization: 'Bearer test-token' },
-      body: { agent: 'codex', prompt: 'CIAO' },
+      body: { agent: 'codex', prompt: 'HELLO' },
     });
     assert.equal(authorized.statusCode, 200);
-    assert.equal(authorized.json.output, 'ACK:CIAO');
+    assert.equal(authorized.json.output, 'ACK:HELLO');
     assert.equal(authorized.json.sessionId, 'fake-thread');
     assert.equal(authorized.json.usage.output_tokens, 2);
   } finally {
@@ -220,12 +212,12 @@ test('POST /api/runs uses configured default agent when request omits agent and 
     const response = await request({
       port,
       path: '/api/runs',
-      body: { prompt: 'CIAO' },
+      body: { prompt: 'HELLO' },
     });
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.json.agent, 'codex');
-    assert.equal(response.json.output, 'ACK:CIAO');
+    assert.equal(response.json.output, 'ACK:HELLO');
   } finally {
     await closeServer(server);
     restoreHome();
@@ -249,7 +241,7 @@ test('POST /api/runs requires agent, provider, or configured default agent', asy
     const response = await request({
       port,
       path: '/api/runs',
-      body: { prompt: 'CIAO' },
+      body: { prompt: 'HELLO' },
     });
 
     assert.equal(response.statusCode, 400);
@@ -277,11 +269,11 @@ test('POST /api/runs returns normalized claude json output', async () => {
     const response = await request({
       port,
       path: '/api/runs',
-      body: { agent: 'claude', prompt: 'CIAO' },
+      body: { agent: 'claude', prompt: 'HELLO' },
     });
 
     assert.equal(response.statusCode, 200);
-    assert.equal(response.json.output, 'ACK:CIAO');
+    assert.equal(response.json.output, 'ACK:HELLO');
     assert.equal(response.json.sessionId, 'fake-claude');
     assert.equal(response.json.usage.num_turns, 1);
   } finally {
@@ -309,7 +301,7 @@ test('POST /api/runs passes sessionId to codex resume command', async () => {
       path: '/api/runs',
       body: {
         agent: 'codex',
-        prompt: 'Continua',
+        prompt: 'Continue',
         sessionId: '019-session',
         responseMode: 'raw',
       },
@@ -317,7 +309,7 @@ test('POST /api/runs passes sessionId to codex resume command', async () => {
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.json.sessionId, '019-session');
-    assert.deepEqual(response.json.args, ['exec', '--json', 'resume', '019-session', 'Continua']);
+    assert.deepEqual(response.json.args, ['exec', '--json', 'resume', '019-session', 'Continue']);
   } finally {
     await closeServer(server);
     restoreHome();
@@ -341,7 +333,7 @@ test('POST /api/runs rejects invalid sessionId', async () => {
     const response = await request({
       port,
       path: '/api/runs',
-      body: { agent: 'codex', prompt: 'CIAO', sessionId: '' },
+      body: { agent: 'codex', prompt: 'HELLO', sessionId: '' },
     });
 
     assert.equal(response.statusCode, 400);
@@ -355,10 +347,10 @@ test('POST /api/runs rejects invalid sessionId', async () => {
 
 test('POST /api/runs terminates agent after timeoutMs', async () => {
   const directory = createTempDir();
-  const command = createFakeAgentCommand(directory, 'gemini');
+  const command = createFakeAgentCommand(directory, 'antigravity');
   const restoreHome = writeConfig({
     directory,
-    agentId: 'gemini',
+    agentId: 'antigravity',
     agentConfig: '--hang',
     command,
   });
@@ -370,8 +362,8 @@ test('POST /api/runs terminates agent after timeoutMs', async () => {
       port,
       path: '/api/runs',
       body: {
-        agent: 'gemini',
-        prompt: 'CIAO',
+        agent: 'antigravity',
+        prompt: 'HELLO',
         timeoutMs: 25,
         responseMode: 'raw',
       },
@@ -403,7 +395,7 @@ test('POST /api/runs rejects invalid timeoutMs', async () => {
     const response = await request({
       port,
       path: '/api/runs',
-      body: { agent: 'codex', prompt: 'CIAO', timeoutMs: 0 },
+      body: { agent: 'codex', prompt: 'HELLO', timeoutMs: 0 },
     });
 
     assert.equal(response.statusCode, 400);
@@ -417,10 +409,10 @@ test('POST /api/runs rejects invalid timeoutMs', async () => {
 
 test('POST /api/runs terminates silent agent after idleTimeoutMs', async () => {
   const directory = createTempDir();
-  const command = createFakeAgentCommand(directory, 'gemini');
+  const command = createFakeAgentCommand(directory, 'antigravity');
   const restoreHome = writeConfig({
     directory,
-    agentId: 'gemini',
+    agentId: 'antigravity',
     agentConfig: '--hang',
     command,
   });
@@ -432,8 +424,8 @@ test('POST /api/runs terminates silent agent after idleTimeoutMs', async () => {
       port,
       path: '/api/runs',
       body: {
-        agent: 'gemini',
-        prompt: 'CIAO',
+        agent: 'antigravity',
+        prompt: 'HELLO',
         idleTimeoutMs: 25,
         responseMode: 'raw',
       },
@@ -465,7 +457,7 @@ test('POST /api/runs rejects invalid idleTimeoutMs', async () => {
     const response = await request({
       port,
       path: '/api/runs',
-      body: { agent: 'codex', prompt: 'CIAO', idleTimeoutMs: 0 },
+      body: { agent: 'codex', prompt: 'HELLO', idleTimeoutMs: 0 },
     });
 
     assert.equal(response.statusCode, 400);
@@ -477,13 +469,13 @@ test('POST /api/runs rejects invalid idleTimeoutMs', async () => {
   }
 });
 
-test('POST /api/runs/stream returns normalized gemini stream output', async () => {
+test('POST /api/runs/stream returns normalized antigravity text output', async () => {
   const directory = createTempDir();
-  const command = createFakeAgentCommand(directory, 'gemini');
+  const command = createFakeAgentCommand(directory, 'antigravity');
   const restoreHome = writeConfig({
     directory,
-    agentId: 'gemini',
-    agentConfig: '--output-format stream-json',
+    agentId: 'antigravity',
+    agentConfig: '',
     command,
   });
   const server = createServer();
@@ -493,18 +485,18 @@ test('POST /api/runs/stream returns normalized gemini stream output', async () =
     const response = await request({
       port,
       path: '/api/runs/stream',
-      body: { agent: 'gemini', prompt: 'CIAO' },
+      body: { agent: 'antigravity', prompt: 'HELLO' },
     });
     const events = parseSseEvents(response.text);
 
     assert.equal(response.statusCode, 200);
     assert.equal(events[0].event, 'start');
     assert.deepEqual(
-      events.filter((entry) => entry.event === 'output').map((entry) => entry.data.text),
-      ['ACK:', 'CIAO']
+      events.filter((entry) => entry.event === 'output').map((entry) => entry.data.text.trim()),
+      ['ACK:HELLO']
     );
     assert.equal(events.at(-1).event, 'exit');
-    assert.equal(events.at(-1).data.output, 'ACK:CIAO');
+    assert.equal(events.at(-1).data.output, 'ACK:HELLO');
   } finally {
     await closeServer(server);
     restoreHome();
@@ -530,7 +522,7 @@ test('POST /api/runs/stream includes requested sessionId', async () => {
       path: '/api/runs/stream',
       body: {
         agent: 'claude',
-        prompt: 'Continua',
+        prompt: 'Continue',
         sessionId: 'claude-session',
         responseMode: 'raw',
       },
@@ -546,7 +538,7 @@ test('POST /api/runs/stream includes requested sessionId', async () => {
       'claude-session',
       '--output-format',
       'text',
-      'Continua',
+      'Continue',
     ]);
     assert.equal(events.at(-1).event, 'exit');
     assert.equal(events.at(-1).data.sessionId, 'claude-session');

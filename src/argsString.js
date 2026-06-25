@@ -47,7 +47,7 @@ function splitArgsString(value) {
   }
 
   if (quote) {
-    throw new Error(`Virgolette non chiuse nella configurazione: ${input}`);
+    throw new Error(`Unclosed quote in configuration: ${input}`);
   }
 
   if (current !== '') {

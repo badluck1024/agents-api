@@ -36,7 +36,7 @@ function readJsonBody(req) {
     req.on('data', (chunk) => {
       body += String(chunk || '');
       if (body.length > 1024 * 1024) {
-        reject(new Error('Body troppo grande.'));
+        reject(new Error('Request body is too large.'));
         req.destroy();
       }
     });
@@ -49,7 +49,7 @@ function readJsonBody(req) {
       try {
         resolve(JSON.parse(body));
       } catch (error) {
-        reject(new Error(`JSON non valido: ${error.message}`));
+        reject(new Error(`Invalid JSON: ${error.message}`));
       }
     });
     req.on('error', reject);
@@ -59,11 +59,11 @@ function readJsonBody(req) {
 function classifyError(error) {
   const message = error && error.message ? error.message : String(error);
 
-  if (message.startsWith('Progetto non trovato')) {
+  if (message.startsWith('Project not found')) {
     return { statusCode: 404, message };
   }
 
-  if (message.startsWith('Agente non disponibile')) {
+  if (message.startsWith('Agent is not available')) {
     return { statusCode: 503, message };
   }
 
@@ -72,10 +72,10 @@ function classifyError(error) {
     message.includes('sessionId') ||
     message.includes('timeoutMs') ||
     message.includes('idleTimeoutMs') ||
-    message.includes('agent o provider') ||
-    message.includes('JSON non valido') ||
-    message.includes('Virgolette non chiuse') ||
-    message.startsWith('Agente non valido')
+    message.includes('agent or provider') ||
+    message.includes('Invalid JSON') ||
+    message.includes('Unclosed quote') ||
+    message.startsWith('Invalid agent')
   ) {
     return { statusCode: 400, message };
   }
@@ -210,6 +210,7 @@ function buildRunResponse(result, projectId, responseMode) {
     responseMode,
     agent: result.agent,
     provider: result.provider,
+    agentVersion: result.agentVersion || '',
     project: projectId,
     ...normalized,
     timedOut: result.timedOut === true,
@@ -220,8 +221,13 @@ function buildRunResponse(result, projectId, responseMode) {
 
 function assertRequestedAgentReady(agentId) {
   if (runtimeReadyAgentIds.length > 0 && !runtimeReadyAgentIds.includes(agentId)) {
-    throw new Error(`Agente non disponibile o non autenticato: ${agentId}`);
+    throw new Error(`Agent is not available or not authenticated: ${agentId}`);
   }
+}
+
+function runtimeAgentVersion(agentId) {
+  const status = runtimeAgentStatuses.find((item) => item.agent === agentId);
+  return status && status.version ? status.version : '';
 }
 
 async function handleRun(req, res, context) {
@@ -235,6 +241,7 @@ async function handleRun(req, res, context) {
     const result = await runAgent({
       agentId: resolved.agentId,
       command: config.agents[resolved.agentId].command,
+      agentVersion: runtimeAgentVersion(resolved.agentId),
       config: resolved.config,
       prompt: body.prompt,
       cwd: resolved.cwd,
@@ -283,6 +290,7 @@ async function handleRunStream(req, res, context) {
     const run = spawnAgent({
       agentId: resolved.agentId,
       command: config.agents[resolved.agentId].command,
+      agentVersion: runtimeAgentVersion(resolved.agentId),
       config: resolved.config,
       prompt: body.prompt,
       cwd: resolved.cwd,
@@ -336,6 +344,7 @@ async function handleRunStream(req, res, context) {
     sseEvent(res, 'start', {
       agent: resolved.agentId,
       provider: resolved.agentId,
+      agentVersion: run.agentVersion || '',
       project: resolved.projectId,
       sessionId: run.sessionId || null,
       responseMode,
@@ -370,7 +379,9 @@ async function handleRunStream(req, res, context) {
       }
     }
 
-    const normalizer = createAgentStreamNormalizer(resolved.agentId, resolved.config);
+    const normalizer = createAgentStreamNormalizer(resolved.agentId, resolved.config, {
+      agentVersion: run.agentVersion,
+    });
 
     child.stdout.on('data', (chunk) => {
       refreshIdleTimeout();
@@ -550,13 +561,13 @@ async function startServer({ host, port } = {}) {
 
   if (isPublicListenHost(listenHost) && !auth.enabled) {
     throw new Error([
-      'API auth non configurata.',
-      `Host richiesto: ${listenHost}`,
-      'Per esporre agentsapi pubblicamente configura prima un Bearer token:',
+      'API auth is not configured.',
+      `Requested host: ${listenHost}`,
+      'Configure a Bearer token before exposing agentsapi publicly:',
       '  agentsapi auth generate',
-      'oppure imposta:',
-      '  AGENTSAPI_API_KEY=token-lungo-random',
-      'In alternativa ascolta solo localmente:',
+      'or set:',
+      '  AGENTSAPI_API_KEY=long-random-token',
+      'Alternatively, listen locally only:',
       '  agentsapi serve --host 127.0.0.1 --port 7357',
     ].join('\n'));
   }
@@ -572,7 +583,7 @@ async function startServer({ host, port } = {}) {
         apiAuthEnabled: auth.enabled,
         apiAuthSource: auth.source,
       });
-      console.log(`agents-api in ascolto su http://${listenHost}:${listenPort}`);
+      console.log(`agents-api listening on http://${listenHost}:${listenPort}`);
       resolve(server);
     });
   });

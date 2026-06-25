@@ -5,7 +5,7 @@ const { buildAgentArgs } = require('../src/agentRunner');
 const { createDefaultAgentsConfig, listAgentIds, normalizeAgentId } = require('../src/agents');
 
 test('supported agent ids remain stable', () => {
-  assert.deepEqual(listAgentIds(), ['codex', 'claude', 'gemini']);
+  assert.deepEqual(listAgentIds(), ['codex', 'claude', 'antigravity']);
 });
 
 test('normalizeAgentId accepts known agents only', () => {
@@ -19,12 +19,12 @@ test('createDefaultAgentsConfig uses command environment overrides', () => {
   const config = createDefaultAgentsConfig({
     AGENTSAPI_CODEX_COMMAND: '/bin/codex-test',
     AGENTSAPI_CLAUDE_COMMAND: '/bin/claude-test',
-    AGENTSAPI_GEMINI_COMMAND: '/bin/gemini-test',
+    AGENTSAPI_ANTIGRAVITY_COMMAND: '/bin/agy-test',
   });
 
   assert.equal(config.codex.command, '/bin/codex-test');
   assert.equal(config.claude.command, '/bin/claude-test');
-  assert.equal(config.gemini.command, '/bin/gemini-test');
+  assert.equal(config.antigravity.command, '/bin/agy-test');
 });
 
 test('buildAgentArgs constructs codex command arguments', () => {
@@ -32,7 +32,7 @@ test('buildAgentArgs constructs codex command arguments', () => {
     buildAgentArgs(
       'codex',
       '--json --model gpt-5.5 -c model_reasoning_effort=\\"xhigh\\"',
-      'Scrivi solo CIAO'
+      'Write only HELLO'
     ),
     [
       'exec',
@@ -41,7 +41,7 @@ test('buildAgentArgs constructs codex command arguments', () => {
       'gpt-5.5',
       '-c',
       'model_reasoning_effort="xhigh"',
-      'Scrivi solo CIAO',
+      'Write only HELLO',
     ]
   );
 });
@@ -51,7 +51,7 @@ test('buildAgentArgs constructs codex resume command arguments', () => {
     buildAgentArgs(
       'codex',
       '--json --model gpt-5.5 --skip-git-repo-check',
-      'Continua',
+      'Continue',
       { sessionId: '019-session' }
     ),
     [
@@ -62,7 +62,7 @@ test('buildAgentArgs constructs codex resume command arguments', () => {
       '--skip-git-repo-check',
       'resume',
       '019-session',
-      'Continua',
+      'Continue',
     ]
   );
 });
@@ -72,7 +72,7 @@ test('buildAgentArgs constructs claude command arguments', () => {
     buildAgentArgs(
       'claude',
       '--output-format text --model claude-opus-4-8 --effort max',
-      'Scrivi solo CIAO'
+      'Write only HELLO'
     ),
     [
       '-p',
@@ -82,7 +82,7 @@ test('buildAgentArgs constructs claude command arguments', () => {
       'claude-opus-4-8',
       '--effort',
       'max',
-      'Scrivi solo CIAO',
+      'Write only HELLO',
     ]
   );
 });
@@ -92,7 +92,7 @@ test('buildAgentArgs constructs claude resume command arguments', () => {
     buildAgentArgs(
       'claude',
       '--output-format json --model claude-opus-4-8 --effort max',
-      'Continua',
+      'Continue',
       { sessionId: 'claude-session' }
     ),
     [
@@ -105,50 +105,44 @@ test('buildAgentArgs constructs claude resume command arguments', () => {
       'claude-opus-4-8',
       '--effort',
       'max',
-      'Continua',
+      'Continue',
     ]
   );
 });
 
-test('buildAgentArgs constructs gemini command arguments', () => {
+test('buildAgentArgs constructs antigravity command arguments', () => {
   assert.deepEqual(
     buildAgentArgs(
-      'gemini',
-      '--output-format stream-json --model gemini-3-pro-preview --approval-mode yolo',
-      'Scrivi solo CIAO'
+      'antigravity',
+      '--model gemini-3.5-flash --dangerously-skip-permissions',
+      'Write only HELLO'
     ),
     [
-      '--output-format',
-      'stream-json',
       '--model',
-      'gemini-3-pro-preview',
-      '--approval-mode',
-      'yolo',
-      '--prompt',
-      'Scrivi solo CIAO',
+      'gemini-3.5-flash',
+      '--dangerously-skip-permissions',
+      '--print',
+      'Write only HELLO',
     ]
   );
 });
 
-test('buildAgentArgs constructs gemini resume command arguments', () => {
+test('buildAgentArgs constructs antigravity resume command arguments', () => {
   assert.deepEqual(
     buildAgentArgs(
-      'gemini',
-      '--output-format stream-json --model gemini-3-pro-preview --approval-mode yolo',
-      'Continua',
-      { sessionId: 'gemini-session' }
+      'antigravity',
+      '--model gemini-3.5-flash --dangerously-skip-permissions',
+      'Continue',
+      { sessionId: 'antigravity-session' }
     ),
     [
-      '--resume',
-      'gemini-session',
-      '--output-format',
-      'stream-json',
+      '--conversation',
+      'antigravity-session',
       '--model',
-      'gemini-3-pro-preview',
-      '--approval-mode',
-      'yolo',
-      '--prompt',
-      'Continua',
+      'gemini-3.5-flash',
+      '--dangerously-skip-permissions',
+      '--print',
+      'Continue',
     ]
   );
 });

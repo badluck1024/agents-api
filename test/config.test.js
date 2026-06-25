@@ -7,14 +7,14 @@ function createConfig() {
   const config = defaultConfig();
   config.agents.codex.config = '--shared-codex';
   config.agents.claude.config = '--shared-claude';
-  config.agents.gemini.config = '--shared-gemini';
+  config.agents.antigravity.config = '--shared-antigravity';
   config.projects.webapp = {
     id: 'webapp',
     workingDir: '/srv/webapp',
     agents: {
       codex: { config: '--project-codex' },
       claude: { config: '--project-claude' },
-      gemini: { config: '' },
+      antigravity: { config: '' },
     },
   };
   return config;
@@ -22,7 +22,7 @@ function createConfig() {
 
 test('selectAgentId uses requested agent or provider when provided', () => {
   assert.equal(selectAgentId(createConfig(), { agent: 'claude' }, { readyAgentIds: ['codex'] }), 'claude');
-  assert.equal(selectAgentId(createConfig(), { provider: 'gemini' }, { readyAgentIds: ['codex'] }), 'gemini');
+  assert.equal(selectAgentId(createConfig(), { provider: 'antigravity' }, { readyAgentIds: ['codex'] }), 'antigravity');
 });
 
 test('selectAgentId uses configured default agent when request omits agent and provider', () => {
@@ -47,8 +47,8 @@ test('resolveRunConfig applies request, project, then shared precedence', () => 
     '--project-codex'
   );
   assert.equal(
-    resolveRunConfig(config, { agent: 'gemini', project: 'webapp' }).config,
-    '--shared-gemini'
+    resolveRunConfig(config, { agent: 'antigravity', project: 'webapp' }).config,
+    '--shared-antigravity'
   );
   assert.equal(
     resolveRunConfig(config, { agent: 'claude', project: 'webapp', config: '--request-claude' }).config,
@@ -70,6 +70,6 @@ test('resolveRunConfig returns project cwd and errors for unknown projects', () 
   assert.equal(resolved.projectId, 'webapp');
   assert.throws(
     () => resolveRunConfig(config, { agent: 'codex', project: 'missing' }),
-    /Progetto non trovato/
+    /Project not found/
   );
 });

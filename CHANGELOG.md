@@ -2,7 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## 0.2.6 - 2026-06-25
+
+### Changed
+
+- Antigravity CLI replaces Gemini CLI as the third supported local agent.
+- Public CLI, API, OpenAPI, and documentation messages are in English.
 
 ## 0.2.5 - 2026-06-12
 

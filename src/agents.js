@@ -31,19 +31,19 @@ const AGENTS = {
       return ['-p', ...configArgs, prompt];
     },
   },
-  gemini: {
-    id: 'gemini',
-    displayName: 'Gemini CLI',
-    commandEnv: 'AGENTSAPI_GEMINI_COMMAND',
-    defaultCommand: 'gemini',
+  antigravity: {
+    id: 'antigravity',
+    displayName: 'Antigravity CLI',
+    commandEnv: 'AGENTSAPI_ANTIGRAVITY_COMMAND',
+    defaultCommand: 'agy',
     versionArgs: ['--version'],
-    authCheck: 'gemini-configured-auth',
+    authArgs: ['models'],
     buildArgs(configString, prompt, options = {}) {
       const configArgs = splitArgsString(configString);
       if (options.sessionId) {
-        return ['--resume', options.sessionId, ...configArgs, '--prompt', prompt];
+        return ['--conversation', options.sessionId, ...configArgs, '--print', prompt];
       }
-      return [...configArgs, '--prompt', prompt];
+      return [...configArgs, '--print', prompt];
     },
   },
 };
