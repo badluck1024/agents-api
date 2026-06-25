@@ -3,7 +3,7 @@ function generateOpenApiSpec() {
     openapi: '3.1.0',
     info: {
       title: 'agents-api',
-      version: '0.2.6',
+      version: '0.2.7',
       description: 'Minimal HTTP API for running locally installed agent CLIs.',
     },
     security: [
