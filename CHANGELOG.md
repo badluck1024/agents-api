@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.2.7 - 2026-06-25
+
+### Fixed
+
+- Claude Code compatibility checks now handle variable model usage entries without requiring baseline updates for model name changes.
+
 ## 0.2.6 - 2026-06-25
 
 ### Changed

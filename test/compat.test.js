@@ -86,6 +86,71 @@ test('output signatures deduplicate jsonl line shapes', () => {
   assert.equal(signature.stdoutLineShapes.length, 2);
 });
 
+test('output signatures normalize dynamic model usage keys', () => {
+  const modelUsageShape = {
+    type: 'object',
+    fields: {
+      '<entry>': {
+        type: 'object',
+        fields: {
+          costUSD: 'number',
+          inputTokens: 'number',
+          outputTokens: 'number',
+        },
+      },
+    },
+  };
+
+  const jsonSignature = createOutputSignature({
+    stdout: JSON.stringify({
+      type: 'result',
+      modelUsage: {
+        'claude-sonnet-4-6': {
+          costUSD: 0.01,
+          inputTokens: 3,
+          outputTokens: 13,
+        },
+      },
+    }),
+  });
+
+  assert.deepEqual(jsonSignature.stdoutShape.fields.modelUsage, modelUsageShape);
+
+  const jsonlSignature = createOutputSignature({
+    stdout: [
+      JSON.stringify({
+        type: 'result',
+        modelUsage: {
+          'claude-haiku-4-5-20251001': {
+            costUSD: 0.01,
+            inputTokens: 3,
+            outputTokens: 13,
+          },
+          'claude-sonnet-4-6': {
+            costUSD: 0.02,
+            inputTokens: 5,
+            outputTokens: 17,
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'result',
+        modelUsage: {
+          'claude-sonnet-4-6': {
+            costUSD: 0.02,
+            inputTokens: 5,
+            outputTokens: 17,
+          },
+        },
+      }),
+    ].join('\n'),
+  });
+
+  assert.equal(jsonlSignature.kind, 'jsonl');
+  assert.equal(jsonlSignature.stdoutLineShapes.length, 1);
+  assert.deepEqual(jsonlSignature.stdoutLineShapes[0].fields.modelUsage, modelUsageShape);
+});
+
 test('compat baseline comparison ignores agents outside the current report', () => {
   const report = {
     agents: [

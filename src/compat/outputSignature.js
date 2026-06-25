@@ -16,7 +16,9 @@ function typeOf(value) {
   return typeof value;
 }
 
-function shapeOf(value, depth = 0) {
+const DYNAMIC_FIELD_MAPS = new Set(['modelUsage']);
+
+function shapeOf(value, depth = 0, path = []) {
   const type = typeOf(value);
   if (depth >= 4 || (type !== 'object' && type !== 'array')) {
     return type;
@@ -25,21 +27,30 @@ function shapeOf(value, depth = 0) {
   if (Array.isArray(value)) {
     return {
       type,
-      items: value.length > 0 ? shapeOf(value[0], depth + 1) : 'empty',
+      items: value.length > 0 ? shapeOf(value[0], depth + 1, path.concat('*')) : 'empty',
     };
+  }
+
+  if (DYNAMIC_FIELD_MAPS.has(path[path.length - 1])) {
+    const shapes = uniqueShapes(Object.values(value), depth + 1, path.concat('<entry>'));
+    const fields = {};
+    shapes.forEach((shape, index) => {
+      fields[index === 0 ? '<entry>' : `<entry:${index + 1}>`] = shape;
+    });
+    return { type, fields };
   }
 
   const fields = {};
   for (const key of Object.keys(value).sort()) {
-    fields[key] = shapeOf(value[key], depth + 1);
+    fields[key] = shapeOf(value[key], depth + 1, path.concat(key));
   }
   return { type, fields };
 }
 
-function uniqueShapes(values) {
+function uniqueShapes(values, depth = 0, path = []) {
   return [...new Map(
     values.map((value) => {
-      const shape = shapeOf(value);
+      const shape = shapeOf(value, depth, path);
       return [JSON.stringify(shape), shape];
     })
   ).values()].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));

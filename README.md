@@ -44,7 +44,7 @@ agentsapi --version
 Expected version:
 
 ```text
-0.2.6
+0.2.7
 ```
 
 ## Quick Start
