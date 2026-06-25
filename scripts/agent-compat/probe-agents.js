@@ -151,9 +151,37 @@ function createBaselineEntries(report) {
   return entries;
 }
 
+function reportAgentIds(report) {
+  return new Set((report.agents || []).map((agent) => agent.agent));
+}
+
+function lineShapeKeys(signature) {
+  return new Set((signature.stdoutLineShapes || []).map((shape) => JSON.stringify(shape)));
+}
+
+function signaturesChanged(previousSignature, actualSignature) {
+  if (JSON.stringify(previousSignature) === JSON.stringify(actualSignature)) {
+    return false;
+  }
+
+  if (
+    previousSignature &&
+    actualSignature &&
+    previousSignature.kind === 'jsonl' &&
+    actualSignature.kind === 'jsonl' &&
+    previousSignature.stderrPresent === actualSignature.stderrPresent
+  ) {
+    const previousShapes = lineShapeKeys(previousSignature);
+    return [...lineShapeKeys(actualSignature)].some((shape) => !previousShapes.has(shape));
+  }
+
+  return true;
+}
+
 function compareBaseline(report, baseline) {
   const expected = baseline && baseline.entries ? baseline.entries : {};
   const actual = createBaselineEntries(report);
+  const includedAgents = reportAgentIds(report);
   const changes = [];
 
   for (const [key, value] of Object.entries(actual)) {
@@ -163,9 +191,7 @@ function compareBaseline(report, baseline) {
       continue;
     }
 
-    const previousSignature = JSON.stringify(previous.signature);
-    const actualSignature = JSON.stringify(value.signature);
-    if (previousSignature !== actualSignature || previous.parserId !== value.parserId) {
+    if (signaturesChanged(previous.signature, value.signature) || previous.parserId !== value.parserId) {
       changes.push({
         key,
         type: 'changed-format',
@@ -176,6 +202,10 @@ function compareBaseline(report, baseline) {
   }
 
   for (const key of Object.keys(expected)) {
+    const expectedAgent = key.split('/')[0];
+    if (!includedAgents.has(expectedAgent)) {
+      continue;
+    }
     if (!actual[key]) {
       changes.push({ key, type: 'missing-probe' });
     }
@@ -249,7 +279,10 @@ async function runProbe(options) {
   if (options.updateBaseline) {
     writeJson(baselinePath, {
       generatedAt: report.generatedAt,
-      entries: createBaselineEntries(report),
+      entries: {
+        ...((baseline && baseline.entries) || {}),
+        ...createBaselineEntries(report),
+      },
     });
   }
 

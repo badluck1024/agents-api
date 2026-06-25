@@ -5,7 +5,7 @@ const { normalizeAgentResult } = require('../src/codexOutput');
 const { createOutputSignature } = require('../src/compat/outputSignature');
 const { detectOutputFormatForAgent, resolveParserProfile } = require('../src/compat/parserRegistry');
 const { compareVersions, extractVersionNumber, satisfiesVersionRange } = require('../src/compat/version');
-const { parseArgs } = require('../scripts/agent-compat/probe-agents');
+const { compareBaseline, parseArgs } = require('../scripts/agent-compat/probe-agents');
 
 test('compat probe argument parser ignores pnpm separator', () => {
   const options = parseArgs(['--', '--agent', 'codex', '--timeout-ms', '120000', '--idle-timeout-ms', '15000']);
@@ -71,6 +71,106 @@ test('output signatures describe json, jsonl, and text shapes', () => {
     'jsonl'
   );
   assert.equal(createOutputSignature({ stdout: 'HELLO' }).kind, 'text');
+});
+
+test('output signatures deduplicate jsonl line shapes', () => {
+  const signature = createOutputSignature({
+    stdout: [
+      JSON.stringify({ type: 'turn.started' }),
+      JSON.stringify({ type: 'turn.started' }),
+      JSON.stringify({ type: 'turn.completed', usage: { output_tokens: 1 } }),
+    ].join('\n'),
+  });
+
+  assert.equal(signature.kind, 'jsonl');
+  assert.equal(signature.stdoutLineShapes.length, 2);
+});
+
+test('compat baseline comparison ignores agents outside the current report', () => {
+  const report = {
+    agents: [
+      {
+        agent: 'codex',
+        version: 'codex-cli 0.142.2',
+        probes: [
+          {
+            id: 'text',
+            parser: { parserId: 'codex-text-v1', promptMode: 'positional' },
+            result: { signature: { kind: 'text', stdoutPresent: true, stderrPresent: true } },
+          },
+        ],
+      },
+    ],
+  };
+  const baseline = {
+    entries: {
+      'codex/text': {
+        agent: 'codex',
+        probe: 'text',
+        version: 'codex-cli 0.142.2',
+        parserId: 'codex-text-v1',
+        promptMode: 'positional',
+        signature: { kind: 'text', stdoutPresent: true, stderrPresent: true },
+      },
+      'claude/text': {
+        agent: 'claude',
+        probe: 'text',
+        version: '2.1.191 (Claude Code)',
+        parserId: 'generic-text-v1',
+        promptMode: 'print-positional',
+        signature: { kind: 'text', stdoutPresent: true, stderrPresent: false },
+      },
+    },
+  };
+
+  assert.deepEqual(compareBaseline(report, baseline), []);
+});
+
+test('compat baseline comparison tolerates missing optional jsonl shapes', () => {
+  const report = {
+    agents: [
+      {
+        agent: 'codex',
+        version: 'codex-cli 0.142.2',
+        probes: [
+          {
+            id: 'json',
+            parser: { parserId: 'codex-jsonl-v1', promptMode: 'positional' },
+            result: {
+              signature: {
+                kind: 'jsonl',
+                stdoutLineShapes: [
+                  { type: 'object', fields: { type: 'string' } },
+                ],
+                stderrPresent: true,
+              },
+            },
+          },
+        ],
+      },
+    ],
+  };
+  const baseline = {
+    entries: {
+      'codex/json': {
+        agent: 'codex',
+        probe: 'json',
+        version: 'codex-cli 0.142.2',
+        parserId: 'codex-jsonl-v1',
+        promptMode: 'positional',
+        signature: {
+          kind: 'jsonl',
+          stdoutLineShapes: [
+            { type: 'object', fields: { item: 'object', type: 'string' } },
+            { type: 'object', fields: { type: 'string' } },
+          ],
+          stderrPresent: true,
+        },
+      },
+    },
+  };
+
+  assert.deepEqual(compareBaseline(report, baseline), []);
 });
 
 test('normalizeAgentResult uses parser registry with agentVersion metadata', () => {

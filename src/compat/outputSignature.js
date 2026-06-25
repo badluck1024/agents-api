@@ -36,6 +36,15 @@ function shapeOf(value, depth = 0) {
   return { type, fields };
 }
 
+function uniqueShapes(values) {
+  return [...new Map(
+    values.map((value) => {
+      const shape = shapeOf(value);
+      return [JSON.stringify(shape), shape];
+    })
+  ).values()].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+}
+
 function createOutputSignature({ stdout = '', stderr = '' } = {}) {
   const stdoutText = String(stdout || '').trim();
   const stderrText = String(stderr || '').trim();
@@ -55,7 +64,7 @@ function createOutputSignature({ stdout = '', stderr = '' } = {}) {
   if (allJsonLines) {
     return {
       kind: 'jsonl',
-      stdoutLineShapes: parsedLines.map((line) => shapeOf(line)),
+      stdoutLineShapes: uniqueShapes(parsedLines),
       stderrPresent: stderrText.length > 0,
     };
   }
