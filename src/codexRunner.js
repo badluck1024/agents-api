@@ -4,7 +4,7 @@ const { runProcess, spawnProcess } = require('./processRunner');
 
 function buildCodexArgs(configString, prompt) {
   if (typeof prompt !== 'string' || prompt.trim() === '') {
-    throw new Error('Il campo prompt e obbligatorio.');
+    throw new Error('The prompt field is required.');
   }
 
   return ['exec', ...splitArgsString(configString), prompt];
@@ -12,12 +12,12 @@ function buildCodexArgs(configString, prompt) {
 
 function ensureWorkingDir(cwd) {
   if (!fs.existsSync(cwd)) {
-    throw new Error(`Working directory inesistente: ${cwd}`);
+    throw new Error(`Working directory does not exist: ${cwd}`);
   }
 
   const stat = fs.statSync(cwd);
   if (!stat.isDirectory()) {
-    throw new Error(`Working directory non valida: ${cwd}`);
+    throw new Error(`Invalid working directory: ${cwd}`);
   }
 }
 

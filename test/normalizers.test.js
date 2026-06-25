@@ -22,14 +22,14 @@ test('normalizeAgentResult extracts codex JSONL output, session, and usage', () 
     stdout: [
       JSON.stringify({ type: 'thread.started', thread_id: 'thread-1' }),
       JSON.stringify({ type: 'turn.started' }),
-      JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'CIAO' } }),
+      JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'HELLO' } }),
       JSON.stringify({ type: 'turn.completed', usage: { output_tokens: 2 } }),
     ].join('\n'),
     stderr: 'Reading additional input from stdin...',
   });
 
   assert.equal(normalized.ok, true);
-  assert.equal(normalized.output, 'CIAO');
+  assert.equal(normalized.output, 'HELLO');
   assert.equal(normalized.sessionId, 'thread-1');
   assert.equal(normalized.usage.output_tokens, 2);
 });
@@ -55,10 +55,10 @@ test('normalizeAgentResult extracts claude text and json output', () => {
       agent: 'claude',
       provider: 'claude',
       exitCode: 0,
-      stdout: 'CIAO',
+      stdout: 'HELLO',
       stderr: '',
     }).output,
-    'CIAO'
+    'HELLO'
   );
 
   const normalizedJson = normalizeAgentResult({
@@ -67,7 +67,7 @@ test('normalizeAgentResult extracts claude text and json output', () => {
     exitCode: 0,
     stdout: JSON.stringify({
       type: 'result',
-      result: 'CIAO',
+      result: 'HELLO',
       session_id: 'claude-session',
       total_cost_usd: 0.01,
       duration_ms: 1200,
@@ -76,7 +76,7 @@ test('normalizeAgentResult extracts claude text and json output', () => {
     stderr: '',
   });
 
-  assert.equal(normalizedJson.output, 'CIAO');
+  assert.equal(normalizedJson.output, 'HELLO');
   assert.equal(normalizedJson.sessionId, 'claude-session');
   assert.equal(normalizedJson.usage.total_cost_usd, 0.01);
 });
@@ -91,44 +91,62 @@ test('createAgentStreamNormalizer extracts claude stream-json deltas', () => {
   assert.equal(
     normalizer.pushStdout(`${JSON.stringify({
       type: 'stream_event',
-      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'CI' } },
+      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'HE' } },
     })}\n`)[0].text,
-    'CI'
+    'HE'
   );
   assert.equal(
     normalizer.pushStdout(`${JSON.stringify({
       type: 'stream_event',
-      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'AO' } },
+      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'LLO' } },
     })}\n`)[0].text,
-    'AO'
+    'LLO'
   );
 
   const done = normalizer.finish(0);
-  assert.equal(done.output, 'CIAO');
+  assert.equal(done.output, 'HELLO');
   assert.equal(done.sessionId, 'claude-stream');
 });
 
-test('normalizeAgentResult extracts gemini json output and usage', () => {
+test('normalizeAgentResult extracts antigravity text output', () => {
   const normalized = normalizeAgentResult({
-    agent: 'gemini',
-    provider: 'gemini',
+    agent: 'antigravity',
+    provider: 'antigravity',
     exitCode: 0,
-    stdout: JSON.stringify({
-      response: 'CIAO',
-      stats: { models: { 'gemini-3-pro-preview': { tokens: { total: 10 } } } },
-    }),
+    stdout: 'HELLO',
     stderr: '',
   });
 
-  assert.equal(normalized.output, 'CIAO');
-  assert.equal(normalized.usage.stats.models['gemini-3-pro-preview'].tokens.total, 10);
+  assert.equal(normalized.output, 'HELLO');
+  assert.equal(normalized.usage, null);
 });
 
-test('createAgentStreamNormalizer extracts gemini stream-json deltas', () => {
-  const normalizer = createAgentStreamNormalizer('gemini', '--output-format stream-json');
+test('normalizeAgentResult treats empty antigravity output as a failed response', () => {
+  const normalized = normalizeAgentResult({
+    agent: 'antigravity',
+    provider: 'antigravity',
+    exitCode: 0,
+    stdout: '',
+    stderr: '',
+  });
 
-  normalizer.pushStdout(`${JSON.stringify({ delta: { text: 'CI' } })}\n`);
-  normalizer.pushStdout(`${JSON.stringify({ delta: { text: 'AO' } })}\n`);
+  assert.equal(normalized.ok, false);
+  assert.match(normalized.errors[0], /produced no output/);
+});
 
-  assert.equal(normalizer.finish(0).output, 'CIAO');
+test('createAgentStreamNormalizer extracts antigravity text chunks', () => {
+  const normalizer = createAgentStreamNormalizer('antigravity', '');
+
+  normalizer.pushStdout('HE');
+  normalizer.pushStdout('LLO');
+
+  assert.equal(normalizer.finish(0).output, 'HELLO');
+});
+
+test('createAgentStreamNormalizer treats empty antigravity streams as failed responses', () => {
+  const normalizer = createAgentStreamNormalizer('antigravity', '');
+  const done = normalizer.finish(0);
+
+  assert.equal(done.ok, false);
+  assert.match(done.errors[0], /produced no output/);
 });

@@ -20,13 +20,13 @@ test('splitArgsString preserves quoted values and escaped quotes', () => {
 test('splitArgsString throws on unclosed quotes', () => {
   assert.throws(
     () => splitArgsString('--model "gpt-5.5'),
-    /Virgolette non chiuse/
+    /Unclosed quote/
   );
 });
 
 test('joinRemainingArgs joins prompt fragments', () => {
   assert.equal(
-    joinRemainingArgs(['--agent', 'codex', 'Write', 'only', 'CIAO'], 2),
-    'Write only CIAO'
+    joinRemainingArgs(['--agent', 'codex', 'Write', 'only', 'HELLO'], 2),
+    'Write only HELLO'
   );
 });

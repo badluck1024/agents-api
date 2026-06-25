@@ -3,8 +3,8 @@ function generateOpenApiSpec() {
     openapi: '3.1.0',
     info: {
       title: 'agents-api',
-      version: '0.2.5',
-      description: 'HTTP API minimale per eseguire agenti CLI installati localmente.',
+      version: '0.2.6',
+      description: 'Minimal HTTP API for running locally installed agent CLIs.',
     },
     security: [
       {
@@ -14,7 +14,7 @@ function generateOpenApiSpec() {
     paths: {
       '/api/runs': {
         post: {
-          summary: 'Esegue un prompt con un agente',
+          summary: 'Run a prompt with an agent',
           requestBody: {
             required: true,
             content: {
@@ -25,23 +25,23 @@ function generateOpenApiSpec() {
           },
           responses: {
             200: {
-              description: 'Risultato agente',
+              description: 'Agent result',
               content: {
                 'application/json': {
                   schema: { $ref: '#/components/schemas/RunResponse' },
                 },
               },
             },
-            400: { description: 'Richiesta non valida' },
-            404: { description: 'Progetto non trovato' },
-            500: { description: 'Errore di esecuzione' },
-            503: { description: 'Agente non disponibile' },
+            400: { description: 'Invalid request' },
+            404: { description: 'Project not found' },
+            500: { description: 'Execution error' },
+            503: { description: 'Agent unavailable' },
           },
         },
       },
       '/api/runs/stream': {
         post: {
-          summary: 'Esegue un prompt con un agente e streamma gli eventi SSE',
+          summary: 'Run a prompt with an agent and stream SSE events',
           requestBody: {
             required: true,
             content: {
@@ -52,17 +52,17 @@ function generateOpenApiSpec() {
           },
           responses: {
             200: {
-              description: 'Stream SSE. In responseMode normalized emette start, session, output, result, reasoning, tool_start, tool, usage, error, exit. In responseMode raw emette start, stdout, stderr, error, exit.',
+              description: 'SSE stream. responseMode normalized emits start, session, output, result, reasoning, tool_start, tool, usage, error, and exit. responseMode raw emits start, stdout, stderr, error, and exit.',
               content: {
                 'text/event-stream': {
                   schema: { type: 'string' },
                 },
               },
             },
-            400: { description: 'Richiesta non valida' },
-            404: { description: 'Progetto non trovato' },
-            500: { description: 'Errore di esecuzione' },
-            503: { description: 'Agente non disponibile' },
+            400: { description: 'Invalid request' },
+            404: { description: 'Project not found' },
+            500: { description: 'Execution error' },
+            503: { description: 'Agent unavailable' },
           },
         },
       },
@@ -82,45 +82,45 @@ function generateOpenApiSpec() {
           properties: {
             agent: {
               type: 'string',
-              enum: ['codex', 'claude', 'gemini'],
-              description: 'Agente da usare. Se assente viene usato il default configurato.',
+              enum: ['codex', 'claude', 'antigravity'],
+              description: 'Agent to use. If omitted, the configured default is used.',
             },
             provider: {
               type: 'string',
-              enum: ['codex', 'claude', 'gemini'],
-              description: 'Alias di agent. Se assente viene usato il default configurato.',
+              enum: ['codex', 'claude', 'antigravity'],
+              description: 'Alias for agent. If omitted, the configured default is used.',
             },
             prompt: {
               type: 'string',
-              description: 'Prompt da passare all agente.',
+              description: 'Prompt to pass to the agent.',
             },
             project: {
               type: 'string',
-              description: 'ID opzionale del progetto configurato. Se presente usa la working_dir del progetto.',
+              description: 'Optional configured project ID. When present, the project working directory is used.',
             },
             sessionId: {
               type: 'string',
-              description: 'ID opzionale della sessione agente da riprendere. Deve appartenere allo stesso agente e alla stessa macchina.',
+              description: 'Optional agent session ID to resume. It must belong to the same agent and machine.',
             },
             config: {
               type: 'string',
-              description: 'Stringa opzionale di argomenti agente. Se presente sovrascrive config progetto o condivisa.',
+              description: 'Optional agent argument string. When present, it overrides project and shared configuration.',
             },
             responseMode: {
               type: 'string',
               enum: ['normalized', 'raw'],
               default: 'normalized',
-              description: '`normalized` restituisce output agentico pulito. `raw` restituisce stdout/stderr/args tecnici.',
+              description: '`normalized` returns cleaned agent output. `raw` returns technical stdout, stderr, and args.',
             },
             timeoutMs: {
               type: 'integer',
               minimum: 1,
-              description: 'Timeout opzionale in millisecondi per terminare il processo agente.',
+              description: 'Optional timeout in milliseconds for terminating the agent process.',
             },
             idleTimeoutMs: {
               type: 'integer',
               minimum: 1,
-              description: 'Timeout opzionale in millisecondi per terminare il processo agente quando non produce output.',
+              description: 'Optional timeout in milliseconds for terminating the agent process when it stops producing output.',
             },
           },
           additionalProperties: false,
@@ -135,8 +135,9 @@ function generateOpenApiSpec() {
           type: 'object',
           properties: {
             responseMode: { const: 'normalized' },
-            agent: { type: 'string', enum: ['codex', 'claude', 'gemini'] },
-            provider: { type: 'string', enum: ['codex', 'claude', 'gemini'] },
+            agent: { type: 'string', enum: ['codex', 'claude', 'antigravity'] },
+            provider: { type: 'string', enum: ['codex', 'claude', 'antigravity'] },
+            agentVersion: { type: 'string' },
             project: { type: ['string', 'null'] },
             ok: { type: 'boolean' },
             exitCode: { type: 'integer' },
@@ -159,8 +160,9 @@ function generateOpenApiSpec() {
           type: 'object',
           properties: {
             responseMode: { const: 'raw' },
-            agent: { type: 'string', enum: ['codex', 'claude', 'gemini'] },
-            provider: { type: 'string', enum: ['codex', 'claude', 'gemini'] },
+            agent: { type: 'string', enum: ['codex', 'claude', 'antigravity'] },
+            provider: { type: 'string', enum: ['codex', 'claude', 'antigravity'] },
+            agentVersion: { type: 'string' },
             project: { type: ['string', 'null'] },
             sessionId: { type: ['string', 'null'] },
             command: { type: 'string' },
@@ -183,7 +185,7 @@ function generateOpenApiSpec() {
 
 function swaggerHtml() {
   return `<!doctype html>
-<html lang="it">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

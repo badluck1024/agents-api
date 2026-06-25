@@ -112,7 +112,7 @@ function loadConfig() {
     const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     return normalizeConfig(parsed);
   } catch (error) {
-    throw new Error(`Configurazione non leggibile in ${configPath}: ${error.message}`);
+    throw new Error(`Config file cannot be read at ${configPath}: ${error.message}`);
   }
 }
 
@@ -126,7 +126,7 @@ function selectAgentId(config, request = {}) {
   if (requestedValue !== undefined && requestedValue !== null && String(requestedValue).trim()) {
     const requested = normalizeAgentId(requestedValue, null);
     if (!requested) {
-      throw new Error(`Agente non valido: ${requestedValue}`);
+      throw new Error(`Invalid agent: ${requestedValue}`);
     }
     return requested;
   }
@@ -136,7 +136,7 @@ function selectAgentId(config, request = {}) {
     return defaultAgent;
   }
 
-  throw new Error('Il campo agent o provider e obbligatorio quando defaultAgent non e configurato.');
+  throw new Error('The agent or provider field is required when defaultAgent is not configured.');
 }
 
 function resolveRunConfig(config, request = {}, options = {}) {
@@ -146,7 +146,7 @@ function resolveRunConfig(config, request = {}, options = {}) {
   const project = projectId ? config.projects[projectId] : null;
 
   if (projectId && !project) {
-    throw new Error(`Progetto non trovato: ${projectId}`);
+    throw new Error(`Project not found: ${projectId}`);
   }
 
   const hasRequestConfig = Object.prototype.hasOwnProperty.call(request, 'config');

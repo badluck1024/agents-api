@@ -15,5 +15,6 @@ yarn-error.log*
 *.tgz
 dist/
 coverage/
+codex-inner-doc/
 
 AGENTS.md

@@ -12,40 +12,40 @@ const { startServer } = require('./server');
 function printHelp() {
   console.log(`agents-api
 
-Uso:
+Usage:
   agentsapi serve [--host <host>] [--port <port>] [--log-level <level>]
   agentsapi status
   agentsapi agents status
   agentsapi auth status|generate|set <token>|clear
-  agentsapi config default get|set <codex|claude|gemini>|clear
-  agentsapi config get <codex|claude|gemini>
-  agentsapi config set <codex|claude|gemini> "<argomenti agente>"
-  agentsapi config clear <codex|claude|gemini>
+  agentsapi config default get|set <codex|claude|antigravity>|clear
+  agentsapi config get <codex|claude|antigravity>
+  agentsapi config set <codex|claude|antigravity> "<agent arguments>"
+  agentsapi config clear <codex|claude|antigravity>
   agentsapi logs get|level <debug|info|warning|error|off>|requests <on|off>|prompt <on|off>
   agentsapi projects list
   agentsapi projects add <id> <working_dir>
   agentsapi projects remove <id>
-  agentsapi projects config <id> [<codex|claude|gemini> ["<argomenti agente>"|--clear]]
-  agentsapi run [--agent <codex|claude|gemini>] [--project <id>] [--session-id <id>] [--timeout-ms <ms>] [--idle-timeout-ms <ms>] [--config "<argomenti agente>"] <prompt>
+  agentsapi projects config <id> [<codex|claude|antigravity> ["<agent arguments>"|--clear]]
+  agentsapi run [--agent <codex|claude|antigravity>] [--project <id>] [--session-id <id>] [--timeout-ms <ms>] [--idle-timeout-ms <ms>] [--config "<agent arguments>"] <prompt>
 
-Regola di override:
-  config richiesta API/CLI > config progetto/agente > config condivisa/agente.
+Configuration precedence:
+  request config > project agent config > shared agent config.
 
-Esempi:
+Examples:
   agentsapi auth generate
   agentsapi config default set codex
   agentsapi config set codex "--json --model gpt-5"
   agentsapi config set claude "--model sonnet --permission-mode plan"
-  agentsapi config set gemini "--model gemini-2.5-pro"
+  agentsapi config set antigravity "--model gemini-3.5-flash"
   agentsapi projects add demo C:\\repo\\demo
   agentsapi projects config demo claude "--model opus"
-  agentsapi run --agent gemini --project demo --session-id 550e8400-e29b-41d4-a716-446655440000 "Scrivi solo CIAO"
+  agentsapi run --agent antigravity --project demo --session-id 550e8400-e29b-41d4-a716-446655440000 "Write only OK"
   agentsapi serve --host 0.0.0.0 --port 7357 --log-level info`);
 }
 
 function requireArg(value, label) {
   if (!value) {
-    throw new Error(`Argomento mancante: ${label}`);
+    throw new Error(`Missing argument: ${label}`);
   }
   return value;
 }
@@ -54,15 +54,15 @@ function requireAgent(value) {
   requireArg(value, 'agent');
   const agentId = normalizeAgentId(value, null);
   if (!agentId) {
-    throw new Error(`Agente non valido: ${value}. Usa: ${listAgentIds().join(', ')}`);
+    throw new Error(`Invalid agent: ${value}. Use: ${listAgentIds().join(', ')}`);
   }
   return agentId;
 }
 
 function validateProjectId(id) {
-  requireArg(id, 'id progetto');
+  requireArg(id, 'project id');
   if (!/^[a-zA-Z0-9._-]+$/.test(id)) {
-    throw new Error('ID progetto non valido. Usa solo lettere, numeri, punto, trattino o underscore.');
+    throw new Error('Invalid project ID. Use only letters, numbers, dots, hyphens, or underscores.');
   }
 }
 
@@ -74,7 +74,7 @@ function resolveOrCreateWorkingDir(value) {
   }
 
   if (!fs.statSync(workingDir).isDirectory()) {
-    throw new Error(`Working directory non valida: ${workingDir}`);
+    throw new Error(`Invalid working directory: ${workingDir}`);
   }
 
   return workingDir;
@@ -99,7 +99,7 @@ function createEmptyProjectAgents() {
 async function handleAgents(args) {
   const subcommand = args[0] || 'status';
   if (subcommand !== 'status' && subcommand !== 'list') {
-    throw new Error(`Comando agents non riconosciuto: ${subcommand}`);
+    throw new Error(`Unknown agents command: ${subcommand}`);
   }
 
   const config = loadConfig();
@@ -146,10 +146,10 @@ function handleAuth(args) {
     const token = generateApiKey();
     config.auth.apiKey = token;
     saveConfig(config);
-    console.log('Token API generato e salvato.');
+    console.log('API token generated and saved.');
     console.log(`Token: ${token}`);
     if (process.env.AGENTSAPI_API_KEY) {
-      console.log('Nota: AGENTSAPI_API_KEY e impostata e avra precedenza sul token salvato.');
+      console.log('Note: AGENTSAPI_API_KEY is set and takes precedence over the saved token.');
     }
     return;
   }
@@ -157,9 +157,9 @@ function handleAuth(args) {
   if (subcommand === 'set') {
     config.auth.apiKey = String(requireArg(args[1], 'token')).trim();
     saveConfig(config);
-    console.log('Token API salvato.');
+    console.log('API token saved.');
     if (process.env.AGENTSAPI_API_KEY) {
-      console.log('Nota: AGENTSAPI_API_KEY e impostata e avra precedenza sul token salvato.');
+      console.log('Note: AGENTSAPI_API_KEY is set and takes precedence over the saved token.');
     }
     return;
   }
@@ -167,14 +167,14 @@ function handleAuth(args) {
   if (subcommand === 'clear') {
     config.auth.apiKey = '';
     saveConfig(config);
-    console.log('Token API rimosso dalla config.');
+    console.log('API token removed from config.');
     if (process.env.AGENTSAPI_API_KEY) {
-      console.log('Nota: AGENTSAPI_API_KEY e ancora impostata, quindi auth resta attiva via env.');
+      console.log('Note: AGENTSAPI_API_KEY is still set, so auth remains active through the environment.');
     }
     return;
   }
 
-  throw new Error(`Comando auth non riconosciuto: ${subcommand}`);
+  throw new Error(`Unknown auth command: ${subcommand}`);
 }
 
 function handleDefaultAgentConfig(args, config) {
@@ -188,18 +188,18 @@ function handleDefaultAgentConfig(args, config) {
   if (subcommand === 'set') {
     config.defaultAgent = requireAgent(args[1]);
     saveConfig(config);
-    console.log(`Agente predefinito aggiornato: ${config.defaultAgent}`);
+    console.log(`Default agent updated: ${config.defaultAgent}`);
     return;
   }
 
   if (subcommand === 'clear') {
     config.defaultAgent = '';
     saveConfig(config);
-    console.log('Agente predefinito rimosso.');
+    console.log('Default agent removed.');
     return;
   }
 
-  throw new Error(`Comando config default non riconosciuto: ${subcommand}`);
+  throw new Error(`Unknown config default command: ${subcommand}`);
 }
 
 function handleConfig(args) {
@@ -221,7 +221,7 @@ function handleConfig(args) {
     const agentId = requireAgent(args[1]);
     config.agents[agentId].config = joinRemainingArgs(args, 2);
     saveConfig(config);
-    console.log(`Configurazione condivisa ${agentId} aggiornata.`);
+    console.log(`Shared ${agentId} configuration updated.`);
     return;
   }
 
@@ -229,17 +229,17 @@ function handleConfig(args) {
     const agentId = requireAgent(args[1]);
     config.agents[agentId].config = '';
     saveConfig(config);
-    console.log(`Configurazione condivisa ${agentId} svuotata.`);
+    console.log(`Shared ${agentId} configuration cleared.`);
     return;
   }
 
-  throw new Error(`Comando config non riconosciuto: ${subcommand}`);
+  throw new Error(`Unknown config command: ${subcommand}`);
 }
 
 function normalizeOnOff(value, label) {
   const normalized = String(requireArg(value, label)).trim().toLowerCase();
 
-  if (['on', 'true', '1', 'yes', 'si'].includes(normalized)) {
+  if (['on', 'true', '1', 'yes'].includes(normalized)) {
     return true;
   }
 
@@ -247,7 +247,7 @@ function normalizeOnOff(value, label) {
     return false;
   }
 
-  throw new Error(`${label} deve essere on oppure off.`);
+  throw new Error(`${label} must be on or off.`);
 }
 
 function handleLogs(args) {
@@ -265,29 +265,29 @@ function handleLogs(args) {
     const rawNormalized = String(rawLevel).trim().toLowerCase();
     const aliases = ['warn', 'warnings', 'errors', 'none', 'false', 'disabled'];
     if (level !== rawNormalized && !aliases.includes(rawNormalized)) {
-      throw new Error('Log level non valido. Usa: debug, info, warning, error, off.');
+      throw new Error('Invalid log level. Use: debug, info, warning, error, off.');
     }
     config.logging.level = level;
     saveConfig(config);
-    console.log(`Log level aggiornato: ${level}`);
+    console.log(`Log level updated: ${level}`);
     return;
   }
 
   if (subcommand === 'requests') {
     config.logging.requests = normalizeOnOff(args[1], 'requests');
     saveConfig(config);
-    console.log(`Log richieste: ${config.logging.requests ? 'on' : 'off'}`);
+    console.log(`Request logging: ${config.logging.requests ? 'on' : 'off'}`);
     return;
   }
 
   if (subcommand === 'prompt') {
     config.logging.includePrompt = normalizeOnOff(args[1], 'prompt');
     saveConfig(config);
-    console.log(`Log prompt in debug: ${config.logging.includePrompt ? 'on' : 'off'}`);
+    console.log(`Prompt debug logging: ${config.logging.includePrompt ? 'on' : 'off'}`);
     return;
   }
 
-  throw new Error(`Comando logs non riconosciuto: ${subcommand}`);
+  throw new Error(`Unknown logs command: ${subcommand}`);
 }
 
 function handleProjects(args) {
@@ -297,7 +297,7 @@ function handleProjects(args) {
   if (subcommand === 'list') {
     const projects = Object.values(config.projects);
     if (projects.length === 0) {
-      console.log('Nessun progetto configurato.');
+      console.log('No projects configured.');
       return;
     }
 
@@ -316,7 +316,7 @@ function handleProjects(args) {
       agents: createEmptyProjectAgents(),
     };
     saveConfig(config);
-    console.log(`Progetto ${id} salvato.`);
+    console.log(`Project ${id} saved.`);
     return;
   }
 
@@ -324,11 +324,11 @@ function handleProjects(args) {
     const id = args[1];
     validateProjectId(id);
     if (!config.projects[id]) {
-      throw new Error(`Progetto non trovato: ${id}`);
+      throw new Error(`Project not found: ${id}`);
     }
     delete config.projects[id];
     saveConfig(config);
-    console.log(`Progetto ${id} rimosso.`);
+    console.log(`Project ${id} removed.`);
     return;
   }
 
@@ -337,7 +337,7 @@ function handleProjects(args) {
     validateProjectId(id);
     const project = config.projects[id];
     if (!project) {
-      throw new Error(`Progetto non trovato: ${id}`);
+      throw new Error(`Project not found: ${id}`);
     }
     project.agents = project.agents || createEmptyProjectAgents();
 
@@ -362,11 +362,11 @@ function handleProjects(args) {
     }
 
     saveConfig(config);
-    console.log(`Configurazione progetto ${id}/${agentId} aggiornata.`);
+    console.log(`Project ${id}/${agentId} configuration updated.`);
     return;
   }
 
-  throw new Error(`Comando projects non riconosciuto: ${subcommand}`);
+  throw new Error(`Unknown projects command: ${subcommand}`);
 }
 
 function parseRunArgs(args) {
@@ -505,7 +505,7 @@ async function runCli(argv) {
     return;
   }
 
-  throw new Error(`Comando non riconosciuto: ${command}`);
+  throw new Error(`Unknown command: ${command}`);
 }
 
 module.exports = {
