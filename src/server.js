@@ -2,15 +2,45 @@ const http = require('http');
 const { isPublicListenHost, resolveApiKey, verifyAuthorizationHeader } = require('./auth');
 const { loadConfig, resolveRunConfig } = require('./config');
 const { createAgentStreamNormalizer, normalizeAgentResult, normalizeResponseMode } = require('./codexOutput');
-const { checkAllAgentsReady, formatAgentStatus, formatNoReadyAgentsFailure, readyAgentIds } = require('./agentHealth');
+const { checkAllAgentsReady, formatNoReadyAgentsFailure, readyAgentIds } = require('./agentHealth');
 const { runAgent, spawnAgent } = require('./agentRunner');
 const { createLogger } = require('./logger');
 const { generateOpenApiSpec, swaggerHtml } = require('./openapi');
+const { isMultipartFormData, parseMultipartRunRequest } = require('./multipart');
 const { killProcessTree } = require('./processRunner');
 
 let nextRequestNumber = 0;
 let runtimeAgentStatuses = [];
 let runtimeReadyAgentIds = [];
+const MAX_JSON_BODY_BYTES = 25 * 1024 * 1024;
+
+function readRequestBuffer(req, limitBytes = MAX_JSON_BODY_BYTES) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    let failed = false;
+
+    req.on('data', (chunk) => {
+      const buffer = Buffer.from(chunk || '');
+      size += buffer.length;
+      if (size > limitBytes) {
+        failed = true;
+        reject(new Error(`Request body is too large. Limit: ${limitBytes} bytes.`));
+        req.destroy();
+        return;
+      }
+
+      chunks.push(buffer);
+    });
+    req.on('end', () => {
+      if (failed) {
+        return;
+      }
+      resolve(Buffer.concat(chunks));
+    });
+    req.on('error', reject);
+  });
+}
 
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
@@ -31,29 +61,27 @@ function sendText(res, statusCode, body, contentType = 'text/plain') {
 }
 
 function readJsonBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', (chunk) => {
-      body += String(chunk || '');
-      if (body.length > 1024 * 1024) {
-        reject(new Error('Request body is too large.'));
-        req.destroy();
-      }
-    });
-    req.on('end', () => {
-      if (!body.trim()) {
-        resolve({});
-        return;
-      }
+  return readRequestBuffer(req).then((body) => {
+    const text = body.toString('utf8');
+    if (!text.trim()) {
+      return {};
+    }
 
-      try {
-        resolve(JSON.parse(body));
-      } catch (error) {
-        reject(new Error(`Invalid JSON: ${error.message}`));
-      }
-    });
-    req.on('error', reject);
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      throw new Error(`Invalid JSON: ${error.message}`);
+    }
   });
+}
+
+async function readRunRequestBody(req) {
+  const contentType = req.headers['content-type'] || '';
+  if (isMultipartFormData(contentType)) {
+    return parseMultipartRunRequest(await readRequestBuffer(req), contentType);
+  }
+
+  return readJsonBody(req);
 }
 
 function classifyError(error) {
@@ -73,6 +101,13 @@ function classifyError(error) {
     message.includes('timeoutMs') ||
     message.includes('idleTimeoutMs') ||
     message.includes('agent or provider') ||
+    message.includes('files field') ||
+    message.includes('files item') ||
+    message.includes('Run file') ||
+    message.includes('Duplicate run file path') ||
+    message.includes('multipart') ||
+    message.includes('Multipart') ||
+    message.includes('boundary') ||
     message.includes('Invalid JSON') ||
     message.includes('Unclosed quote') ||
     message.startsWith('Invalid agent')
@@ -158,7 +193,7 @@ function createRequestContext(req, res) {
 
   return {
     config,
-    includePromptInLogs: config.logging.includePrompt === true,
+    includePromptInLogs: config.logging.includePrompt !== false,
     logger,
     requestId,
   };
@@ -166,6 +201,7 @@ function createRequestContext(req, res) {
 
 function logRunRequest(context, body, resolved) {
   const responseMode = normalizeResponseMode(body.responseMode);
+  const files = Array.isArray(body.files) ? body.files : [];
   context.logger.info('agent_run_received', {
     requestId: context.requestId,
     agent: resolved.agentId,
@@ -177,6 +213,7 @@ function logRunRequest(context, body, resolved) {
     timeoutMs: body.timeoutMs || undefined,
     idleTimeoutMs: body.idleTimeoutMs || undefined,
     configLength: String(resolved.config || '').length,
+    filesCount: files.length || undefined,
     promptLength: String(body.prompt || '').length,
   });
 
@@ -189,7 +226,27 @@ function logRunRequest(context, body, resolved) {
     sessionId: typeof body.sessionId === 'string' ? body.sessionId.trim() : undefined,
     timeoutMs: body.timeoutMs || undefined,
     idleTimeoutMs: body.idleTimeoutMs || undefined,
-    prompt: context.includePromptInLogs ? body.prompt : undefined,
+    files: files.map((file) => ({
+      path: file && (file.path || file.name),
+      encoding: file && file.encoding,
+      mimeType: file && file.mimeType,
+      contentLength: file && typeof file.content === 'string'
+        ? file.content.length
+        : file && Buffer.isBuffer(file.buffer)
+          ? file.buffer.length
+          : undefined,
+    })),
+  });
+}
+
+function logAgentInvocation(context, resolved, invocation) {
+  context.logger.debug('agent_run_prompt', {
+    requestId: context.requestId,
+    agent: resolved.agentId,
+    project: resolved.projectId,
+    promptTransport: invocation.promptTransport,
+    files: invocation.files,
+    prompt: context.includePromptInLogs ? invocation.prompt : undefined,
   });
 }
 
@@ -213,6 +270,7 @@ function buildRunResponse(result, projectId, responseMode) {
     agentVersion: result.agentVersion || '',
     project: projectId,
     ...normalized,
+    ...(result.files ? { files: result.files } : {}),
     timedOut: result.timedOut === true,
     idleTimedOut: result.idleTimedOut === true,
     sessionId: normalized.sessionId || result.sessionId || null,
@@ -231,8 +289,10 @@ function runtimeAgentVersion(agentId) {
 }
 
 async function handleRun(req, res, context) {
+  const runStartedAt = Date.now();
+
   try {
-    const body = await readJsonBody(req);
+    const body = await readRunRequestBody(req);
     const responseMode = normalizeResponseMode(body.responseMode);
     const config = loadConfig();
     const resolved = resolveRunConfig(config, body, { readyAgentIds: runtimeReadyAgentIds });
@@ -248,6 +308,8 @@ async function handleRun(req, res, context) {
       sessionId: body.sessionId,
       timeoutMs: body.timeoutMs,
       idleTimeoutMs: body.idleTimeoutMs,
+      files: body.files,
+      onInvocation: (invocation) => logAgentInvocation(context, resolved, invocation),
     });
 
     sendJson(res, 200, buildRunResponse(result, resolved.projectId, responseMode));
@@ -257,6 +319,7 @@ async function handleRun(req, res, context) {
       project: resolved.projectId,
       responseMode,
       exitCode: result.exitCode,
+      durationMs: Date.now() - runStartedAt,
       timedOut: result.timedOut === true,
       idleTimedOut: result.idleTimedOut === true,
       stdoutLength: String(result.stdout || '').length,
@@ -274,20 +337,22 @@ async function handleRun(req, res, context) {
 }
 
 async function handleRunStream(req, res, context) {
+  const runStartedAt = Date.now();
   let started = false;
   let finished = false;
   let child;
+  let run;
   let streamTimedOut = false;
   let streamIdleTimedOut = false;
 
   try {
-    const body = await readJsonBody(req);
+    const body = await readRunRequestBody(req);
     const responseMode = normalizeResponseMode(body.responseMode);
     const config = loadConfig();
     const resolved = resolveRunConfig(config, body, { readyAgentIds: runtimeReadyAgentIds });
     assertRequestedAgentReady(resolved.agentId);
     logRunRequest(context, body, resolved);
-    const run = spawnAgent({
+    run = spawnAgent({
       agentId: resolved.agentId,
       command: config.agents[resolved.agentId].command,
       agentVersion: runtimeAgentVersion(resolved.agentId),
@@ -297,6 +362,8 @@ async function handleRunStream(req, res, context) {
       sessionId: body.sessionId,
       timeoutMs: body.timeoutMs,
       idleTimeoutMs: body.idleTimeoutMs,
+      files: body.files,
+      onInvocation: (invocation) => logAgentInvocation(context, resolved, invocation),
     });
 
     child = run.child;
@@ -354,6 +421,8 @@ async function handleRunStream(req, res, context) {
             args: run.args,
             cwd: run.cwd,
             config: run.config,
+            ...(run.files ? { files: run.files } : {}),
+            promptTransport: run.promptTransport,
             timeoutMs: run.timeoutMs,
             idleTimeoutMs: run.idleTimeoutMs,
           }
@@ -419,6 +488,9 @@ async function handleRunStream(req, res, context) {
         clearTimeout(runTimeout);
       }
       clearIdleTimeout();
+      if (run && typeof run.cleanup === 'function') {
+        run.cleanup();
+      }
       const finalResult = responseMode === 'raw' ? null : normalizer.finish(code);
       const exitPayload = responseMode === 'raw'
         ? {
@@ -444,6 +516,7 @@ async function handleRunStream(req, res, context) {
         project: resolved.projectId,
         responseMode,
         exitCode: code,
+        durationMs: Date.now() - runStartedAt,
       });
       sseEvent(res, 'exit', exitPayload);
       res.end();
@@ -466,6 +539,9 @@ async function handleRunStream(req, res, context) {
       error: classified.message,
     });
     if (started) {
+      if (run && typeof run.cleanup === 'function') {
+        run.cleanup();
+      }
       sseEvent(res, 'error', { error: classified.message });
       res.end();
       return;
@@ -548,7 +624,6 @@ async function startServer({ host, port } = {}) {
     } else {
       logger.warning('agent_status', payload);
     }
-    console.log(formatAgentStatus(status));
   }
 
   if (runtimeReadyAgentIds.length === 0) {
@@ -583,7 +658,6 @@ async function startServer({ host, port } = {}) {
         apiAuthEnabled: auth.enabled,
         apiAuthSource: auth.source,
       });
-      console.log(`agents-api listening on http://${listenHost}:${listenPort}`);
       resolve(server);
     });
   });

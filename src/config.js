@@ -35,7 +35,7 @@ function defaultConfig() {
     logging: {
       level: normalizeLogLevel(process.env.AGENTSAPI_LOG_LEVEL || 'info'),
       requests: true,
-      includePrompt: false,
+      includePrompt: true,
     },
     projects: {},
   };
@@ -78,7 +78,7 @@ function normalizeConfig(config) {
   normalized.auth.apiKey = String(normalized.auth.apiKey || '').trim();
   normalized.logging.level = normalizeLogLevel(normalized.logging.level);
   normalized.logging.requests = normalized.logging.requests !== false;
-  normalized.logging.includePrompt = normalized.logging.includePrompt === true;
+  normalized.logging.includePrompt = normalized.logging.includePrompt !== false;
 
   for (const [id, project] of Object.entries((config && config.projects) || {})) {
     const projectAgents = {};

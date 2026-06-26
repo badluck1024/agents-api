@@ -2,11 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
-## 0.2.7 - 2026-06-25
+## Unreleased
+
+## 0.2.8 - 2026-06-26
+
+### Added
+
+- Run requests can include files that are staged for the selected agent and exposed through the agent CLI command.
+- Run endpoints accept `multipart/form-data` with a JSON `request` part and file attachments whose filenames define the relative paths available to agents.
+- Optional real-agent integration tests cover Codex, Claude Code, and Antigravity CLI across run, stream, JSON, and multipart upload flows.
+
+### Changed
+
+- Server logs use readable text output by default, with JSON log output still available through `AGENTSAPI_LOG_FORMAT=json`.
+- Antigravity CLI documentation calls out native Windows stdout capture limitations and recommends Linux or WSL for Antigravity-backed runs.
 
 ### Fixed
 
-- Claude Code compatibility checks now handle variable model usage entries without requiring baseline updates for model name changes.
+- Uploaded run files are read from per-run staged paths instead of same-named files elsewhere on the host.
+- Codex run prompts with uploaded files are passed through stdin to preserve multiline attachment instructions.
+- Windows npm command shims are resolved for agent subprocess execution.
 
 ## 0.2.6 - 2026-06-25
 

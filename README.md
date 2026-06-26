@@ -12,13 +12,19 @@ This package is implemented with Codex.
 
 ## Supported Agents
 
-| Agent | CLI command | Non-interactive command used by agents-api |
-| --- | --- | --- |
-| Codex | `codex` | `codex exec ... <prompt>` |
-| Claude Code | `claude` | `claude -p ... <prompt>` |
-| Antigravity CLI | `agy` | `agy ... --print <prompt>` |
+| Agent | CLI command | Non-interactive command used by agents-api | Run file access |
+| --- | --- | --- | --- |
+| Codex | `codex` | `codex exec ... <prompt>` | Staged filesystem paths; multiline prompts use stdin; image files also use `--image` |
+| Claude Code | `claude` | `claude -p ... <prompt>` | Staged filesystem paths |
+| Antigravity CLI | `agy` | `agy ... --print <prompt>` | Staged filesystem paths |
 
 At least one supported agent must be installed and authenticated before the HTTP server can start.
+
+> **Antigravity CLI support**
+>
+> Antigravity-backed runs are currently supported on Linux and WSL. Native Windows execution is not supported because known Antigravity CLI stdout capture issues can prevent `agents-api` from reading the output produced by `agy --print`.
+>
+> Public issue reports: [google-antigravity/antigravity-cli#76](https://github.com/google-antigravity/antigravity-cli/issues/76), [google-gemini/gemini-cli#27466](https://github.com/google-gemini/gemini-cli/issues/27466).
 
 ## Requirements
 
@@ -44,7 +50,7 @@ agentsapi --version
 Expected version:
 
 ```text
-0.2.7
+0.2.8
 ```
 
 ## Quick Start
@@ -128,15 +134,15 @@ Each supported CLI must be authenticated for the same OS user that starts `agent
 
 Complete the agent login in its CLI before using that agent through `agents-api`.
 
-Antigravity runs use print mode. For `/api/runs` and `/api/runs/stream`, `agents-api` reads the assistant response from stdout produced by `agy --print`, so the runtime environment that starts `agents-api` must be able to capture that output:
+> **Antigravity CLI stdout capture**
+>
+> Antigravity runs use print mode. For `/api/runs` and `/api/runs/stream`, `agents-api` reads the assistant response from stdout produced by `agy --print`, so the runtime environment that starts `agents-api` must be able to capture that output:
 
 ```bash
 agy --print "Write only OK"
 ```
 
-A successful check prints `OK` to stdout. If this command exits successfully but redirected or subprocess output is empty, Antigravity-backed API runs are reported as unsuccessful because there is no assistant output to return.
-
-Public issue reports tracking Antigravity CLI stdout capture behavior: [google-antigravity/antigravity-cli#76](https://github.com/google-antigravity/antigravity-cli/issues/76), [google-gemini/gemini-cli#27466](https://github.com/google-gemini/gemini-cli/issues/27466).
+> A successful check prints `OK` to stdout. If this command exits successfully but redirected or subprocess output is empty, Antigravity-backed API runs are reported as unsuccessful because there is no assistant output to return.
 
 ## Configuration
 
@@ -303,6 +309,18 @@ Request body:
   "prompt": "Write only OK",
   "sessionId": "019...",
   "config": "--json --model gpt-5",
+  "files": [
+    {
+      "path": "brief.md",
+      "content": "# Brief\n\nUse this file as source material."
+    },
+    {
+      "path": "diagram.png",
+      "content": "iVBORw0KGgo...",
+      "encoding": "base64",
+      "mimeType": "image/png"
+    }
+  ],
   "timeoutMs": 600000,
   "idleTimeoutMs": 30000,
   "responseMode": "normalized"
@@ -319,11 +337,54 @@ Fields:
 | `project` | No | Project ID used to select working directory and project config |
 | `sessionId` | No | Agent session to resume |
 | `config` | No | Request-level argument string |
+| `files` | No | Files made available to the selected agent for this run |
 | `timeoutMs` | No | Positive integer timeout in milliseconds |
 | `idleTimeoutMs` | No | Positive integer timeout in milliseconds without stdout/stderr output |
 | `responseMode` | No | `normalized` or `raw` |
 
 If neither `agent` nor `provider` is provided, the configured fallback agent is used. Without a fallback agent, the request is rejected.
+
+### Run Files
+
+For binary files and regular file uploads, use `multipart/form-data` with a JSON `request` part and one or more `files` parts:
+
+```bash
+curl http://127.0.0.1:7357/api/runs \
+  -H "Authorization: Bearer TOKEN" \
+  -F 'request={"agent":"codex","project":"webapp","prompt":"Read docs/brief.pdf and summarize it.","responseMode":"normalized"};type=application/json' \
+  -F 'files=@brief.pdf;filename=docs/brief.pdf;type=application/pdf'
+```
+
+The multipart file `filename` is used as the request path for the attachment. For example, `filename=docs/brief.pdf` makes the attachment addressable as `docs/brief.pdf` in the run.
+
+Each file is staged in a temporary run directory under the working directory with a generated filename such as `attachment-1.pdf`, and the selected agent receives the staged filesystem paths in the prompt before the user request. Request paths and filenames are treated as aliases for those staged paths, so agents are directed to read the uploaded copy instead of searching for same-named files elsewhere on the machine. Codex receives the augmented prompt through stdin and image files are also passed with `--image`.
+
+JSON requests can also include files inline:
+
+```json
+{
+  "agent": "claude",
+  "project": "webapp",
+  "prompt": "Summarize the attached brief.",
+  "files": [
+    {
+      "path": "brief.md",
+      "content": "# Launch brief\n\n..."
+    }
+  ]
+}
+```
+
+Inline JSON file fields:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Relative file path visible to the agent |
+| `content` | Yes | File content |
+| `encoding` | No | `utf8` or `base64`; defaults to `utf8` |
+| `mimeType` | No | Optional media type |
+
+File paths from JSON `path` values and multipart `filename` values must be relative and cannot contain `.` or `..` path segments. A request can include up to 20 files, 8 MiB per file, and 16 MiB total file content.
 
 Normalized response:
 
@@ -339,6 +400,14 @@ Normalized response:
   "idleTimedOut": false,
   "output": "OK",
   "sessionId": "019...",
+  "files": [
+    {
+      "path": "brief.md",
+      "runPath": "agents-api-run-files/run-.../attachment-1.md",
+      "stagedPath": "attachment-1.md",
+      "size": 41
+    }
+  ],
   "usage": null,
   "errors": [],
   "events": []
@@ -355,7 +424,7 @@ Raw response:
 }
 ```
 
-Raw mode returns command metadata, `stdout`, and `stderr`.
+Raw mode returns command metadata, `stdout`, and `stderr`. The `promptTransport` field is `argument` or `stdin`.
 
 If `timeoutMs` is provided and the agent process does not finish in time, `agents-api` terminates the process and returns `timedOut: true`. If `idleTimeoutMs` is provided and the agent process stops producing stdout/stderr output, `agents-api` terminates the process and returns `idleTimedOut: true`.
 
@@ -453,22 +522,42 @@ agentsapi logs level info
 agentsapi logs level debug
 ```
 
+Server logs use readable text lines by default:
+
+```text
+2026-06-26T11:09:52.546Z INFO    Server started url=http://127.0.0.1:7357 logLevel=info auth=false authSource=none
+2026-06-26T11:10:03.413Z INFO    Run received request=mqutxehc-1 agent=codex project=null cwd=/srv/app mode=normalized files=1 prompt=47chars
+2026-06-26T11:11:39.663Z INFO    Run completed request=mqutxehc-1 agent=codex project=null mode=normalized exit=0 duration=1m36.3s stdout=928B stderr=57KiB
+```
+
 Disable request logging:
 
 ```bash
 agentsapi logs requests off
 ```
 
-Include prompt text in debug logs:
+Debug logs include the complete agent prompt by default, including any run-file instructions and staged attachment paths:
 
 ```bash
-agentsapi logs prompt on
+agentsapi logs level debug
+```
+
+Prompt logging can be disabled:
+
+```bash
+agentsapi logs prompt off
 ```
 
 Runtime override:
 
 ```bash
 AGENTSAPI_LOG_LEVEL=debug agentsapi serve --host 0.0.0.0 --port 7357
+```
+
+JSON log output is available for structured log collectors:
+
+```bash
+AGENTSAPI_LOG_FORMAT=json agentsapi serve --host 127.0.0.1 --port 7357
 ```
 
 Logs are emitted as JSON lines on stdout/stderr.
@@ -480,6 +569,7 @@ Logs are emitted as JSON lines on stdout/stderr.
 | `AGENTSAPI_HOME` | Directory used to store `config.json` |
 | `AGENTSAPI_API_KEY` | Bearer token used by the HTTP API |
 | `AGENTSAPI_LOG_LEVEL` | Runtime log level |
+| `AGENTSAPI_LOG_FORMAT` | Log format: `text` or `json` |
 | `AGENTSAPI_CODEX_COMMAND` | Codex command path/name |
 | `AGENTSAPI_CLAUDE_COMMAND` | Claude Code command path/name |
 | `AGENTSAPI_ANTIGRAVITY_COMMAND` | Antigravity CLI command path/name |
