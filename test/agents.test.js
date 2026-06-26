@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildAgentArgs } = require('../src/agentRunner');
+const { buildAgentArgs, buildAgentInvocation } = require('../src/agentRunner');
 const { createDefaultAgentsConfig, listAgentIds, normalizeAgentId } = require('../src/agents');
 
 test('supported agent ids remain stable', () => {
@@ -145,6 +145,120 @@ test('buildAgentArgs constructs antigravity resume command arguments', () => {
       'Continue',
     ]
   );
+});
+
+test('buildAgentInvocation sends multiline codex prompts through stdin', () => {
+  const invocation = buildAgentInvocation('codex', '--json', 'Line one\nLine two');
+
+  assert.deepEqual(invocation.args, ['exec', '--json', '-']);
+  assert.equal(invocation.agentPrompt, 'Line one\nLine two');
+  assert.equal(invocation.promptTransport, 'stdin');
+  assert.equal(invocation.stdin, 'Line one\nLine two');
+});
+
+test('buildAgentArgs adds run files to codex command arguments', () => {
+  const runFiles = {
+    directory: '/tmp/agents-api-run',
+    files: [
+      {
+        absolutePath: '/tmp/agents-api-run/diagram.png',
+        agentPath: '/tmp/agents-api-run/diagram.png',
+        isImage: true,
+        path: 'diagram.png',
+        runPath: 'agents-api-run-files/run-1/diagram.png',
+        size: 3,
+      },
+    ],
+  };
+  const invocation = buildAgentInvocation('codex', '--json', 'Inspect the diagram', { runFiles });
+
+  assert.deepEqual(invocation.args, [
+    'exec',
+    '--json',
+    '--image=/tmp/agents-api-run/diagram.png',
+    '-',
+  ]);
+  assert.equal(invocation.agentPrompt, invocation.stdin);
+  assert.equal(invocation.promptTransport, 'stdin');
+  assert.match(invocation.stdin, /^Uploaded request files saved locally for this run:/);
+  assert.match(invocation.stdin, /User prompt:\nInspect the diagram$/);
+  assert.match(invocation.stdin, /Alias from request: "diagram\.png"/);
+  assert.match(invocation.stdin, /Staged filesystem path to read: "\/tmp\/agents-api-run\/diagram\.png"/);
+});
+
+test('buildAgentArgs adds run files to claude command arguments', () => {
+  const runFiles = {
+    directory: '/tmp/agents-api-run',
+    files: [
+      {
+        absolutePath: '/tmp/agents-api-run/notes.txt',
+        agentPath: '/tmp/agents-api-run/notes.txt',
+        isImage: false,
+        path: 'notes.txt',
+        runPath: 'agents-api-run-files/run-1/notes.txt',
+        size: 5,
+      },
+    ],
+  };
+  const args = buildAgentArgs('claude', '--output-format text', 'Summarize', { runFiles });
+
+  assert.deepEqual(args.slice(0, -1), [
+    '-p',
+    '--output-format',
+    'text',
+  ]);
+  assert.match(args.at(-1), /Alias from request: "notes\.txt"/);
+  assert.match(args.at(-1), /Staged filesystem path to read: "\/tmp\/agents-api-run\/notes\.txt"/);
+});
+
+test('buildAgentArgs adds run files to antigravity command arguments', () => {
+  const runFiles = {
+    directory: '/tmp/agents-api-run',
+    files: [
+      {
+        absolutePath: '/tmp/agents-api-run/spec.md',
+        agentPath: '/tmp/agents-api-run/spec.md',
+        isImage: false,
+        path: 'spec.md',
+        runPath: 'agents-api-run-files/run-1/spec.md',
+        size: 8,
+      },
+    ],
+  };
+  const args = buildAgentArgs('antigravity', '--model gemini-3.5-flash', 'Review', { runFiles });
+
+  assert.deepEqual(args.slice(0, -1), [
+    '--model',
+    'gemini-3.5-flash',
+    '--print',
+  ]);
+  assert.match(args.at(-1), /Alias from request: "spec\.md"/);
+  assert.match(args.at(-1), /Staged filesystem path to read: "\/tmp\/agents-api-run\/spec\.md"/);
+});
+
+test('buildAgentArgs keeps codex resume file args compatible', () => {
+  const runFiles = {
+    directory: '/tmp/agents-api-run',
+    files: [
+      {
+        absolutePath: '/tmp/agents-api-run/notes.txt',
+        agentPath: '/tmp/agents-api-run/notes.txt',
+        isImage: false,
+        path: 'notes.txt',
+        runPath: 'agents-api-run-files/run-1/notes.txt',
+        size: 5,
+      },
+    ],
+  };
+  const invocation = buildAgentInvocation('codex', '--json', 'Continue', {
+    sessionId: '019-session',
+    runFiles,
+  });
+
+  assert.deepEqual(invocation.args, ['exec', '--json', 'resume', '019-session', '-']);
+  assert.equal(invocation.promptTransport, 'stdin');
+  assert.match(invocation.stdin, /Alias from request: "notes\.txt"/);
+  assert.match(invocation.stdin, /Staged filesystem path to read: "\/tmp\/agents-api-run\/notes\.txt"/);
 });
 
 test('buildAgentArgs validates sessionId', () => {

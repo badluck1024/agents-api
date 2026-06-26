@@ -1,4 +1,5 @@
 const { splitArgsString } = require('./argsString');
+const { buildRunFileArgs } = require('./runFiles');
 
 const AGENTS = {
   codex: {
@@ -10,10 +11,11 @@ const AGENTS = {
     authArgs: ['login', 'status'],
     buildArgs(configString, prompt, options = {}) {
       const configArgs = splitArgsString(configString);
+      const fileArgs = buildRunFileArgs('codex', options.runFiles);
       if (options.sessionId) {
-        return ['exec', ...configArgs, 'resume', options.sessionId, prompt];
+        return ['exec', ...configArgs, ...fileArgs, 'resume', options.sessionId, prompt];
       }
-      return ['exec', ...configArgs, prompt];
+      return ['exec', ...configArgs, ...fileArgs, prompt];
     },
   },
   claude: {
@@ -25,10 +27,11 @@ const AGENTS = {
     authArgs: ['auth', 'status'],
     buildArgs(configString, prompt, options = {}) {
       const configArgs = splitArgsString(configString);
+      const fileArgs = buildRunFileArgs('claude', options.runFiles);
       if (options.sessionId) {
-        return ['-p', '--resume', options.sessionId, ...configArgs, prompt];
+        return ['-p', '--resume', options.sessionId, ...configArgs, ...fileArgs, prompt];
       }
-      return ['-p', ...configArgs, prompt];
+      return ['-p', ...configArgs, ...fileArgs, prompt];
     },
   },
   antigravity: {
@@ -40,10 +43,11 @@ const AGENTS = {
     authArgs: ['models'],
     buildArgs(configString, prompt, options = {}) {
       const configArgs = splitArgsString(configString);
+      const fileArgs = buildRunFileArgs('antigravity', options.runFiles);
       if (options.sessionId) {
-        return ['--conversation', options.sessionId, ...configArgs, '--print', prompt];
+        return ['--conversation', options.sessionId, ...configArgs, ...fileArgs, '--print', prompt];
       }
-      return [...configArgs, '--print', prompt];
+      return [...configArgs, ...fileArgs, '--print', prompt];
     },
   },
 };

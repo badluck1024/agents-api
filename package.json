@@ -1,6 +1,6 @@
 {
   "name": "agents-api",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Minimal local HTTP API for running installed AI agent CLIs.",
   "type": "commonjs",
   "main": "src/index.js",
@@ -15,11 +15,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "agents:compat": "node scripts/agent-compat/probe-agents.js",
-    "agents:compat:check": "node scripts/agent-compat/probe-agents.js --check-baseline",
-    "agents:compat:update": "node scripts/agent-compat/probe-agents.js --update-baseline",
-    "check": "node --check bin/agentsapi.js && node --check src/agentHealth.js && node --check src/agentRunner.js && node --check src/agents.js && node --check src/argsString.js && node --check src/auth.js && node --check src/cli.js && node --check src/codexOutput.js && node --check src/config.js && node --check src/compat/outputSignature.js && node --check src/compat/parserRegistry.js && node --check src/compat/version.js && node --check src/index.js && node --check src/logger.js && node --check src/openapi.js && node --check src/processRunner.js && node --check src/server.js && node --check scripts/agent-compat/probe-agents.js",
+    "check": "node --check bin/agentsapi.js && node --check src/agentHealth.js && node --check src/agentRunner.js && node --check src/agents.js && node --check src/argsString.js && node --check src/auth.js && node --check src/cli.js && node --check src/codexOutput.js && node --check src/config.js && node --check src/compat/parserRegistry.js && node --check src/compat/version.js && node --check src/index.js && node --check src/logger.js && node --check src/multipart.js && node --check src/openapi.js && node --check src/processRunner.js && node --check src/runFiles.js && node --check src/server.js",
     "test": "node --test",
+    "test:real-agents": "node --test integration/realAgentsApi.js",
     "release:check": "node scripts/validate-release.js"
   },
   "keywords": [

@@ -16,5 +16,7 @@ yarn-error.log*
 dist/
 coverage/
 codex-inner-doc/
+agents-api-run-files/
+.agents-api-runs/
 
 AGENTS.md

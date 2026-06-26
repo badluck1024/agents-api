@@ -3,7 +3,7 @@ function generateOpenApiSpec() {
     openapi: '3.1.0',
     info: {
       title: 'agents-api',
-      version: '0.2.7',
+      version: '0.2.8',
       description: 'Minimal HTTP API for running locally installed agent CLIs.',
     },
     security: [
@@ -20,6 +20,17 @@ function generateOpenApiSpec() {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/RunRequest' },
+              },
+              'multipart/form-data': {
+                schema: { $ref: '#/components/schemas/MultipartRunRequest' },
+                encoding: {
+                  request: {
+                    contentType: 'application/json',
+                  },
+                  files: {
+                    contentType: 'application/octet-stream',
+                  },
+                },
               },
             },
           },
@@ -47,6 +58,17 @@ function generateOpenApiSpec() {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/RunRequest' },
+              },
+              'multipart/form-data': {
+                schema: { $ref: '#/components/schemas/MultipartRunRequest' },
+                encoding: {
+                  request: {
+                    contentType: 'application/json',
+                  },
+                  files: {
+                    contentType: 'application/octet-stream',
+                  },
+                },
               },
             },
           },
@@ -106,6 +128,11 @@ function generateOpenApiSpec() {
               type: 'string',
               description: 'Optional agent argument string. When present, it overrides project and shared configuration.',
             },
+            files: {
+              type: 'array',
+              description: 'Optional files made available to the agent for this run.',
+              items: { $ref: '#/components/schemas/RunFile' },
+            },
             responseMode: {
               type: 'string',
               enum: ['normalized', 'raw'],
@@ -121,6 +148,60 @@ function generateOpenApiSpec() {
               type: 'integer',
               minimum: 1,
               description: 'Optional timeout in milliseconds for terminating the agent process when it stops producing output.',
+            },
+          },
+          additionalProperties: false,
+        },
+        RunFile: {
+          type: 'object',
+          required: ['path', 'content'],
+          properties: {
+            path: {
+              type: 'string',
+              description: 'Relative file path exposed to the agent. Absolute paths and parent-directory segments are rejected.',
+            },
+            content: {
+              type: 'string',
+              description: 'File content. Use encoding "base64" for binary files.',
+            },
+            encoding: {
+              type: 'string',
+              enum: ['utf8', 'base64'],
+              default: 'utf8',
+              description: 'Content encoding.',
+            },
+            mimeType: {
+              type: 'string',
+              description: 'Optional media type. Image media types are passed to Codex as image attachments.',
+            },
+          },
+          additionalProperties: false,
+        },
+        RunFileReference: {
+          type: 'object',
+          properties: {
+            path: { type: 'string' },
+            runPath: { type: 'string' },
+            stagedPath: { type: 'string' },
+            size: { type: 'integer', minimum: 0 },
+            mimeType: { type: 'string' },
+          },
+        },
+        MultipartRunRequest: {
+          type: 'object',
+          required: ['request'],
+          properties: {
+            request: {
+              type: 'string',
+              description: 'JSON run request using the RunRequest shape, without the files property.',
+            },
+            files: {
+              type: 'array',
+              description: 'File attachments. Each part filename is used as the relative path exposed to the agent.',
+              items: {
+                type: 'string',
+                format: 'binary',
+              },
             },
           },
           additionalProperties: false,
@@ -145,6 +226,10 @@ function generateOpenApiSpec() {
             idleTimedOut: { type: 'boolean' },
             output: { type: 'string' },
             sessionId: { type: ['string', 'null'] },
+            files: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/RunFileReference' },
+            },
             usage: { type: ['object', 'null'] },
             errors: {
               type: 'array',
@@ -169,6 +254,14 @@ function generateOpenApiSpec() {
             args: { type: 'array', items: { type: 'string' } },
             cwd: { type: 'string' },
             config: { type: 'string' },
+            promptTransport: {
+              type: 'string',
+              enum: ['argument', 'stdin'],
+            },
+            files: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/RunFileReference' },
+            },
             timeoutMs: { type: ['integer', 'null'] },
             timedOut: { type: 'boolean' },
             idleTimeoutMs: { type: ['integer', 'null'] },

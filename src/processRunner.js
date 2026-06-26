@@ -46,21 +46,31 @@ function resolveWindowsCommand(command, env) {
   return command;
 }
 
-function readNpmCmdShim(commandPath) {
+function readWindowsCmdShim(commandPath) {
   try {
     const content = fs.readFileSync(commandPath, 'utf8');
-    const match = content.match(/"%dp0%\\([^"]+\.(?:js|cjs|mjs))"/i);
-    if (!match) {
-      return null;
+    const baseDirectory = path.dirname(commandPath);
+
+    const scriptMatch = content.match(/"%dp0%\\([^"]+\.(?:js|cjs|mjs))"/i);
+    if (scriptMatch) {
+      const scriptPath = path.join(baseDirectory, scriptMatch[1].replace(/[\\/]/g, path.sep));
+      const bundledNode = path.join(baseDirectory, 'node.exe');
+      return {
+        command: fs.existsSync(bundledNode) ? bundledNode : 'node',
+        argsPrefix: [scriptPath],
+      };
     }
 
-    const baseDirectory = path.dirname(commandPath);
-    const scriptPath = path.join(baseDirectory, match[1].replace(/[\\/]/g, path.sep));
-    const bundledNode = path.join(baseDirectory, 'node.exe');
-    return {
-      command: fs.existsSync(bundledNode) ? bundledNode : 'node',
-      argsPrefix: [scriptPath],
-    };
+    const executableMatch = content.match(/"%dp0%\\([^"]+\.(?:exe|com))"\s+%[*]/i);
+    if (executableMatch) {
+      const executablePath = path.join(baseDirectory, executableMatch[1].replace(/[\\/]/g, path.sep));
+      return {
+        command: executablePath,
+        argsPrefix: [],
+      };
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -75,7 +85,7 @@ function prepareCommand(command, args, env) {
   const extension = path.extname(resolvedCommand).toLowerCase();
 
   if (extension === '.cmd' || extension === '.bat') {
-    const shim = readNpmCmdShim(resolvedCommand);
+    const shim = readWindowsCmdShim(resolvedCommand);
     if (shim) {
       return {
         command: shim.command,
@@ -92,19 +102,32 @@ function prepareCommand(command, args, env) {
   return { command: resolvedCommand, args };
 }
 
-function spawnProcess({ command, args = [], cwd, env }) {
+function hasInput(options) {
+  return Object.prototype.hasOwnProperty.call(options, 'input') &&
+    options.input !== undefined &&
+    options.input !== null;
+}
+
+function spawnProcess({ command, args = [], cwd, env, input }) {
   const childEnv = {
     ...process.env,
     ...(env || {}),
     GIT_OPTIONAL_LOCKS: process.env.GIT_OPTIONAL_LOCKS || '0',
   };
   const prepared = prepareCommand(command, args, childEnv);
+  const writeInput = hasInput({ input });
 
-  return spawn(prepared.command, prepared.args, {
+  const child = spawn(prepared.command, prepared.args, {
     cwd: cwd || process.cwd(),
     env: childEnv,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: [writeInput ? 'pipe' : 'ignore', 'pipe', 'pipe'],
   });
+
+  if (writeInput) {
+    child.stdin.end(String(input));
+  }
+
+  return child;
 }
 
 function killProcessTree(child) {
